@@ -19,3 +19,4 @@ services:
       - ./data:/app/data
       - ./reports:/app/reports
     command: python discord_bot.py
+

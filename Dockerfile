@@ -22,3 +22,4 @@ COPY . .
 VOLUME ["/app/data", "/app/reports"]
 
 CMD ["python", "main.py"]
+
