@@ -41,7 +41,7 @@ def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None) -> D
     if offer.matched_skills:
         matched_str = " • ".join(f"`{s}`" for s in offer.matched_skills)
         fields.append({
-            "name": "🟢 Pokryte technologie z Twojego profilu",
+            "name": "\u200b\n🟢 Pokryte technologie z Twojego profilu",
             "value": matched_str,
             "inline": False
         })
@@ -52,19 +52,19 @@ def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None) -> D
         if additional:
             add_str = " • ".join(f"`{r}`" for r in additional[:8])
             fields.append({
-                "name": "📌 Dodatkowe wymagania roli",
+                "name": "\u200b\n📌 Dodatkowe wymagania roli",
                 "value": add_str,
                 "inline": False
             })
         elif not offer.matched_skills:
             reqs_str = " • ".join(f"`{r}`" for r in offer.requirements[:8])
-            fields.append({"name": "🛠 Wymagania ogłoszenia", "value": reqs_str, "inline": False})
+            fields.append({"name": "\u200b\n🛠 Wymagania ogłoszenia", "value": reqs_str, "inline": False})
 
     # 5. AI Executive Summary & Application Insights (Blockquote format)
     if ai_summary:
         quoted_summary = "\n".join(f"> {line}" for line in ai_summary.strip().split("\n") if line.strip())
         fields.append({
-            "name": "🤖 Analiza AI & Wskazówki rekrutacyjne",
+            "name": "\u200b\n🤖 Analiza AI & Wskazówki rekrutacyjne",
             "value": quoted_summary,
             "inline": False
         })
