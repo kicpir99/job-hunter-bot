@@ -78,9 +78,10 @@ Modern job platforms render content via Client-Side or React Server Components a
 * Detects deceptive job descriptions (e.g. roles labeled "Junior" that specify 3+ years of enterprise experience in the body text).
 * Enriches the notification with custom recommendations on which portfolio projects to emphasize when applying.
 
-### 3. Stateful Deduplication & Regional Normalization
+### 3. Stateful Deduplication & Automated 60-Day Retention
 * Many recruitment agencies post identical vacancies across 16 different Polish voivodeships. The pipeline groups duplicate company/title combinations into unified records.
 * An embedded SQLite engine tracks all processed vacancies, ensuring zero duplicate notifications and idempotent execution.
+* Features automated 60-day vacancy lifecycle retention with SQLite `VACUUM` compaction, allowing re-posted positions to trigger fresh alerts while keeping storage lightweight.
 
 ### 4. Zero-Cost Serverless Automation (GitHub Actions)
 * Scheduled cron job running every 30 minutes during business hours (7:30 – 18:30 CET, Monday through Friday).
@@ -167,6 +168,8 @@ python discord_bot.py
 * `/raport` — Computes and displays the latest Polish IT Junior Python market intelligence embed.
 * `/oferty [limit]` — Lists the most recent vacancies vetted and recommended by the AI screener.
 * `/list <oferta>` — Synthesizes a bespoke, project-grounded cover letter and cold outreach pitch referencing your GitHub portfolio.
+* `/aplikowano <oferta>` — Flags a job posting as applied within your personal ATS system.
+* `/aplikacje` — Displays the full roster and timeline of submitted applications.
 
 ---
 

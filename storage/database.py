@@ -56,6 +56,10 @@ class JobDatabase:
                 cursor.execute("ALTER TABLE seen_offers ADD COLUMN is_remote INTEGER DEFAULT 0")
             if "requirements" not in existing_cols:
                 cursor.execute("ALTER TABLE seen_offers ADD COLUMN requirements TEXT DEFAULT '[]'")
+            if "application_status" not in existing_cols:
+                cursor.execute("ALTER TABLE seen_offers ADD COLUMN application_status TEXT DEFAULT 'new'")
+            if "applied_at" not in existing_cols:
+                cursor.execute("ALTER TABLE seen_offers ADD COLUMN applied_at TIMESTAMP")
 
             conn.commit()
 
@@ -160,6 +164,37 @@ class JobDatabase:
             """, (f"%{query}%", f"%{query}%"))
             res = cursor.fetchone()
             return dict(res) if res else None
+
+    def mark_as_applied(self, query: str) -> Optional[Dict[str, Any]]:
+        """Updates offer status to 'applied' and records application timestamp."""
+        offer = self.find_offer_by_id_or_company(query)
+        if not offer:
+            return None
+
+        now_str = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE seen_offers SET application_status = 'applied', applied_at = ? WHERE id = ?",
+                (now_str, offer["id"])
+            )
+            conn.commit()
+
+        offer["application_status"] = "applied"
+        offer["applied_at"] = now_str
+        return offer
+
+    def get_applied_offers(self) -> List[Dict[str, Any]]:
+        """Returns all postings marked as applied by candidate."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, portal, external_id, title, company, url, salary, location, applied_at
+                FROM seen_offers
+                WHERE application_status = 'applied'
+                ORDER BY applied_at DESC
+            """)
+            return [dict(r) for r in cursor.fetchall()]
 
     def get_all_offers(self) -> List[Dict[str, Any]]:
         """Retrieves all tracked offers for analytical aggregation."""

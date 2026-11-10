@@ -110,6 +110,19 @@ def send_discord_message(
         header = "🎓 **Nowa oferta (status studenta):**" if offer.requires_student else "🎯 **Nowa dopasowana oferta pracy!**"
         payload["content"] = payload.get("content", header)
         payload["embeds"] = [create_discord_embed(offer, ai_summary=ai_summary)]
+        payload["components"] = [
+            {
+                "type": 1,
+                "components": [
+                    {
+                        "type": 2,
+                        "style": 5,
+                        "label": f"👉 Aplikuj na {offer.portal.upper()}",
+                        "url": offer.url
+                    }
+                ]
+            }
+        ]
 
     try:
         with httpx.Client(timeout=10.0) as client:

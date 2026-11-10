@@ -54,3 +54,31 @@ def test_database_cleanup(tmp_path):
     assert not db.is_seen("nofluffjobs", "old-1")
 
 
+def test_application_tracking(tmp_path):
+    test_db_path = tmp_path / "test_jobs.db"
+    db = JobDatabase(db_path=test_db_path)
+
+    offer = JobOffer(
+        id="app-1",
+        portal="justjoin",
+        title="Junior Backend Developer",
+        company="StartupSp",
+        url="https://justjoin.it/offers/app-1",
+    )
+    db.save_offer(offer)
+
+    # Initial state
+    assert len(db.get_applied_offers()) == 0
+
+    # Mark as applied
+    res = db.mark_as_applied("StartupSp")
+    assert res is not None
+    assert res["company"] == "StartupSp"
+
+    applied = db.get_applied_offers()
+    assert len(applied) == 1
+    assert applied[0]["company"] == "StartupSp"
+    assert applied[0]["applied_at"] is not None
+
+
+

@@ -102,6 +102,48 @@ async def cmd_list(interaction: discord.Interaction, oferta: str):
         await interaction.followup.send(f"❌ Błąd podczas generowania: {e}")
 
 
+@bot.tree.command(name="aplikowano", description="Oznacza ofertę jako wysłaną aplikację w Twoim prywatnym ATS")
+@app_commands.describe(oferta="ID oferty lub nazwa firmy (np. 1, MasterBorn)")
+async def cmd_aplikowano(interaction: discord.Interaction, oferta: str):
+    updated = db.mark_as_applied(oferta)
+    if not updated:
+        await interaction.response.send_message(f"❌ Nie znaleziono oferty pasującej do: '{oferta}'.")
+        return
+
+    embed = discord.Embed(
+        title="🎉 Aplikacja zarejestrowana!",
+        description=f"Oznaczono ofertę **{updated['company']}** jako wysłaną w Twoim systemie ATS.",
+        color=0x2ecc71
+    )
+    embed.add_field(name="Stanowisko", value=updated["title"], inline=True)
+    embed.add_field(name="Portal", value=updated["portal"].upper(), inline=True)
+    embed.add_field(name="Link do oferty", value=f"[Otwórz ogłoszenie]({updated['url']})", inline=False)
+    embed.set_footer(text="Wpisz /aplikacje, aby zobaczyć całą historię swoich wysłanych CV.")
+
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="aplikacje", description="Wyświetla listę wszystkich firm, do których wysłałeś CV")
+async def cmd_aplikacje(interaction: discord.Interaction):
+    applied = db.get_applied_offers()
+    if not applied:
+        await interaction.response.send_message("ℹ️ Nie masz jeszcze oznaczonych żadnych wysłanych aplikacji. Użyj `/aplikowano <id>`, gdy wyślesz CV!")
+        return
+
+    embed = discord.Embed(
+        title=f"📋 Twoje aktywne aplikacje ({len(applied)})",
+        description="Oto lista stanowisk, na które wysłałeś swoje zgłoszenie:",
+        color=0x9b59b6
+    )
+
+    for a in applied[:15]:
+        date_str = a.get("applied_at", "")[:10] if a.get("applied_at") else "Niedawno"
+        val = f"**Firma:** {a['company']}\n**Widełki:** {a['salary'] or 'Brak'}\n**Data:** {date_str}\n[🔗 Przejdź do oferty]({a['url']})"
+        embed.add_field(name=f"#{a['id']} • {a['title']}", value=val, inline=False)
+
+    await interaction.response.send_message(embed=embed)
+
+
 def main():
     if not DISCORD_BOT_TOKEN:
         logger.error("Brak skonfigurowanego DISCORD_BOT_TOKEN w pliku .env.")

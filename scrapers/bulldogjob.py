@@ -14,7 +14,7 @@ class BulldogJobScraper(BaseScraper):
     """Scraper extracting job postings from BulldogJob Next.js initial props."""
 
     BASE_URL = "https://bulldogjob.pl"
-    SEARCH_URL = "https://bulldogjob.pl/companies/jobs/s/role,backend/experienceLevel,junior/language,python"
+    SEARCH_URL = "https://bulldogjob.pl/companies/jobs/s/role,backend/experienceLevel,trainee,junior/language,python"
 
     @property
     def name(self) -> str:

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class JustJoinScraper(BaseScraper):
     """Scraper extracting job postings from Just Join IT via Next.js RSC payload."""
 
-    SEARCH_URL = "https://justjoin.it/job-offers/all-locations/python?experience-level=junior"
+    SEARCH_URL = "https://justjoin.it/job-offers/all-locations/python?experience-level=junior&experience-level=intern"
     OFFER_URL_PREFIX = "https://justjoin.it/offers/"
 
     @property
