@@ -184,4 +184,15 @@ def run() -> None:
 
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    except Exception as e:
+        logger.exception("Critical pipeline failure encountered.")
+        if DISCORD_WEBHOOK_URL:
+            try:
+                send_discord_message(
+                    text=f"🚨 **[Job Hunter Engine Alert]** Wystąpił błąd krytyczny w cyklu:\n```{str(e)[:300]}```"
+                )
+            except Exception:
+                pass
+        sys.exit(1)

@@ -6,7 +6,8 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Pydantic](https://img.shields.io/badge/Data%20Validation-Pydantic%20v2-red)](https://docs.pydantic.dev/)
 [![Gemini](https://img.shields.io/badge/AI%20Screening-Google%20Gemini-orange?logo=google)](https://ai.google.dev/)
-[![CI/CD](https://img.shields.io/badge/Automation-GitHub%20Actions-green?logo=github-actions&logoColor=white)](https://github.com/features/actions)
+[![Actions Status](https://github.com/kicpir99/job-hunter-bot/actions/workflows/check_jobs.yml/badge.svg)](https://github.com/kicpir99/job-hunter-bot/actions/workflows/check_jobs.yml)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker&logoColor=white)](Dockerfile)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
 ---
@@ -170,6 +171,16 @@ python discord_bot.py
 * `/list <oferta>` — Synthesizes a bespoke, project-grounded cover letter and cold outreach pitch referencing your GitHub portfolio.
 * `/aplikowano <oferta>` — Flags a job posting as applied within your personal ATS system.
 * `/aplikacje` — Displays the full roster and timeline of submitted applications.
+
+### 🐳 Docker & Docker Compose
+The application is fully containerized for deployment on any cloud server or VPS:
+```bash
+# Run one scraping and screening cycle in Docker
+docker compose run --rm job-hunter
+
+# Start interactive Discord bot as a persistent background daemon
+docker compose up -d discord-bot
+```
 
 ---
 
