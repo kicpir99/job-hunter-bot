@@ -73,8 +73,8 @@ class JobDatabase:
             )
             return cursor.fetchone() is not None
 
-    def save_offer(self, offer: JobOffer, is_notified: bool = False, ai_summary: Optional[str] = None) -> None:
-        """Persists a new job offer record with its metadata."""
+    def save_offer(self, offer: JobOffer, is_notified: bool = False, ai_summary: Optional[str] = None) -> int:
+        """Persists a new job offer record with its metadata, returning its numeric database ID."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -96,6 +96,13 @@ class JobDatabase:
                 datetime.now(timezone.utc).isoformat()
             ))
             conn.commit()
+
+            if cursor.lastrowid:
+                return cursor.lastrowid
+
+            cursor.execute("SELECT id FROM seen_offers WHERE portal = ? AND external_id = ?", (offer.portal, offer.id))
+            row = cursor.fetchone()
+            return row[0] if row else 0
 
     def mark_as_notified(self, portal: str, external_id: str) -> None:
         """Updates offer dispatch status to notified."""

@@ -9,7 +9,7 @@ from models import JobOffer
 logger = logging.getLogger(__name__)
 
 
-def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None) -> Dict[str, Any]:
+def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None, db_id: Optional[int] = None) -> Dict[str, Any]:
     """Constructs an ultra-readable, symmetrical Discord Embed card with candidate alignment indicators."""
     
     # 1. Location and mode formatting
@@ -79,6 +79,9 @@ def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None) -> D
 
     badge_title = f"🎓 [DLA STUDENTA] {offer.title}" if offer.requires_student else f"💼 {offer.title}"
 
+    id_display = f"#{db_id}" if db_id else f"#{offer.id}"
+    cmd_arg = str(db_id) if db_id else offer.company
+
     return {
         "title": badge_title,
         "url": offer.url,
@@ -86,7 +89,7 @@ def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None) -> D
         "fields": fields,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "footer": {
-            "text": f"ID: {offer.id} • Użyj /list na czacie, aby przygotować aplikację"
+            "text": f"ID oferty: {id_display} • Wpisz /list {cmd_arg} aby wygenerować aplikację"
         }
     }
 
@@ -95,7 +98,8 @@ def send_discord_message(
     offer: Optional[JobOffer] = None,
     text: Optional[str] = None,
     ai_summary: Optional[str] = None,
-    webhook_url: Optional[str] = None
+    webhook_url: Optional[str] = None,
+    db_id: Optional[int] = None
 ) -> bool:
     """Dispatches payload to Discord Webhook endpoint."""
     target_webhook = webhook_url or DISCORD_WEBHOOK_URL
@@ -109,7 +113,7 @@ def send_discord_message(
     if offer:
         header = "🎓 **Nowa oferta (status studenta):**" if offer.requires_student else "🎯 **Nowa dopasowana oferta pracy!**"
         payload["content"] = payload.get("content", header)
-        payload["embeds"] = [create_discord_embed(offer, ai_summary=ai_summary)]
+        payload["embeds"] = [create_discord_embed(offer, ai_summary=ai_summary, db_id=db_id)]
         payload["components"] = [
             {
                 "type": 1,

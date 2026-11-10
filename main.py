@@ -31,12 +31,12 @@ logging.basicConfig(
 logger = logging.getLogger("JobHunter")
 
 
-def dispatch_notification(offer: JobOffer, ai_summary: str | None = None) -> bool:
+def dispatch_notification(offer: JobOffer, ai_summary: str | None = None, db_id: int | None = None) -> bool:
     """Dispatches notifications across configured messaging backends."""
     dispatched = False
 
     if DISCORD_WEBHOOK_URL:
-        if send_discord_message(offer=offer, ai_summary=ai_summary):
+        if send_discord_message(offer=offer, ai_summary=ai_summary, db_id=db_id):
             dispatched = True
 
     if TELEGRAM_BOT_TOKEN:
@@ -168,12 +168,11 @@ def run() -> None:
                 db.save_offer(offer, is_notified=False, ai_summary=ai_summary)
                 continue
 
-            dispatched = dispatch_notification(offer, ai_summary=ai_summary)
+            db_id = db.save_offer(offer, is_notified=False, ai_summary=ai_summary)
+            dispatched = dispatch_notification(offer, ai_summary=ai_summary, db_id=db_id)
             if dispatched:
                 notifications_sent += 1
-                db.save_offer(offer, is_notified=True, ai_summary=ai_summary)
-            else:
-                db.save_offer(offer, is_notified=False, ai_summary=ai_summary)
+                db.mark_as_notified(offer.portal, offer.id)
 
             time.sleep(1.5)
 
