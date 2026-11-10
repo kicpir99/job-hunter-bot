@@ -40,3 +40,4 @@ def test_heuristic_pass_for_python_developer():
     is_rec, reason = analyzer._fast_heuristic_check(dev_offer)
     assert is_rec
     assert reason == "OK"
+

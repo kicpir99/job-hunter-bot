@@ -2,6 +2,7 @@ import argparse
 import logging
 import sys
 import time
+from pathlib import Path
 from typing import List
 
 from storage.database import JobDatabase
@@ -13,6 +14,8 @@ from scrapers import (
     PracujPlScraper,
 )
 from analyzer.ai_filter import JobOfferAnalyzer
+from analyzer.cover_letter import CoverLetterGenerator
+from analytics.market_report import MarketAnalytics
 from notifier.telegram import format_offer_message, send_telegram_message
 from notifier.discord import send_discord_message
 from config import DATABASE_PATH, DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN
@@ -48,11 +51,13 @@ def dispatch_notification(offer: JobOffer, ai_summary: str | None = None) -> boo
 
 
 def run() -> None:
-    parser = argparse.ArgumentParser(description="Job Hunter Bot - Automated Job Monitoring & Screening Engine")
+    parser = argparse.ArgumentParser(description="Job Hunter Agent - Career Operations & Market Intelligence Engine")
     parser.add_argument("--reset-db", action="store_true", help="Purges database and reinitializes empty schema")
     parser.add_argument("--test-discord", action="store_true", help="Dispatches test card to Discord webhook")
     parser.add_argument("--test-telegram", action="store_true", help="Dispatches test message to Telegram bot")
     parser.add_argument("--stats", action="store_true", help="Displays current database tracking metrics")
+    parser.add_argument("--report", action="store_true", help="Generates comprehensive IT market intelligence report")
+    parser.add_argument("--cover-letter", type=str, metavar="QUERY", help="Generates bespoke cover letter and LinkedIn pitch for company or offer ID")
     args = parser.parse_args()
 
     db = JobDatabase()
@@ -68,6 +73,38 @@ def run() -> None:
         logger.info(f"Total postings tracked: {stats['total_tracked']}")
         logger.info(f"Total dispatched: {stats['total_notified']}")
         logger.info(f"Breakdown by portal: {stats['by_portal']}")
+        return
+
+    if args.report:
+        analytics = MarketAnalytics(db=db)
+        report_md = analytics.generate_markdown_report()
+        logger.info("Market Intelligence Report successfully generated:\n")
+        print(report_md)
+        logger.info("Saved to reports/market_insights.md")
+        return
+
+    if args.cover_letter:
+        generator = CoverLetterGenerator(db=db)
+        logger.info(f"Generating personalized application artifacts for: '{args.cover_letter}'...")
+        res = generator.generate(args.cover_letter)
+        if "error" in res:
+            logger.error(res["error"])
+            return
+
+        company_safe = res["company"].replace(" ", "_").lower()
+        out_path = Path("reports") / f"cover_letter_{company_safe}.md"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        full_doc = f"# Application Kit: {res['company']} — {res['title']}\n\n"
+        full_doc += f"**Offer URL:** {res['offer_url']}\n\n"
+        full_doc += f"## 📨 LinkedIn InMail Pitch\n```text\n{res['linkedin_pitch']}\n```\n\n"
+        full_doc += f"## 📄 Full Cover Letter\n\n{res['cover_letter_markdown']}\n"
+
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(full_doc)
+
+        logger.info(f"Artifacts successfully created at {out_path}!\n")
+        print(full_doc)
         return
 
     if args.test_discord:

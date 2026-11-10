@@ -25,3 +25,4 @@ def test_database_deduplication(tmp_path):
     assert stats["total_tracked"] == 1
     assert stats["total_notified"] == 1
     assert stats["by_portal"].get("nofluffjobs") == 1
+

@@ -137,20 +137,36 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.1-flash-lite
 ```
 
-### Execution
+### Execution & CLI Capabilities
 ```bash
 # Run one full aggregation and screening cycle
 python main.py
 
-# Test Discord webhook integration
-python main.py --test-discord
+# Generate comprehensive IT market intelligence report
+python main.py --report
+
+# Generate tailored cover letter & LinkedIn pitch for specific company or ID
+python main.py --cover-letter MasterBorn
 
 # Display database metrics and portal breakdown
 python main.py --stats
 
+# Test Discord webhook integration
+python main.py --test-discord
+
 # Reset tracking database
 python main.py --reset-db
 ```
+
+### 💬 Interactive Discord Bot (Slash Commands)
+For two-way interactive control directly from Discord channels:
+```bash
+python discord_bot.py
+```
+**Supported Slash Commands:**
+* `/raport` — Computes and displays the latest Polish IT Junior Python market intelligence embed.
+* `/oferty [limit]` — Lists the most recent vacancies vetted and recommended by the AI screener.
+* `/list <oferta>` — Synthesizes a bespoke, project-grounded cover letter and cold outreach pitch referencing your GitHub portfolio.
 
 ---
 
