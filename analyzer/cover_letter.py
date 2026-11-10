@@ -140,3 +140,4 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
         except Exception as e:
             logger.error(f"Failed to generate application payload: {e}")
             return {"error": f"Błąd generowania przez Gemini AI: {e}"}
+

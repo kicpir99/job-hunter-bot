@@ -28,3 +28,4 @@ def test_market_analytics_aggregation(tmp_path):
     assert data["avg_salary_min"] == 8000
     assert data["avg_salary_max"] == 10000
     assert len(data["top_technologies"]) == 3
+
