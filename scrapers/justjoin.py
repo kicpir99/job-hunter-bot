@@ -5,7 +5,7 @@ from typing import List, Optional
 from curl_cffi import requests
 
 from candidate_profile import CANDIDATE_PROFILE
-from models import JobOffer
+from models import JobOffer, normalize_company, normalize_title
 from scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
@@ -58,14 +58,28 @@ class JustJoinScraper(BaseScraper):
             raw_offers = json.loads(full_text[start:end])
             logger.info(f"[{self.name}] Ingested {len(raw_offers)} raw postings.")
 
+            grouped: dict[tuple[str, str], JobOffer] = {}
             for o in raw_offers:
                 offer = self._parse_offer(o)
                 if not offer or not self._is_location_valid(offer):
                     continue
 
-                offers.append(offer)
+                key = (normalize_company(offer.company), normalize_title(offer.title))
+                if key not in grouped:
+                    grouped[key] = offer
+                else:
+                    existing = grouped[key]
+                    if offer.is_remote:
+                        existing.is_remote = True
+                    curr_locs = [c.strip() for c in existing.location.split(",") if c.strip()]
+                    new_locs = [c.strip() for c in offer.location.split(",") if c.strip()]
+                    for nl in new_locs:
+                        if nl not in curr_locs:
+                            curr_locs.append(nl)
+                    existing.location = ", ".join(curr_locs[:3])
 
-            logger.info(f"[{self.name}] Filtered down to {len(offers)} matching offers.")
+            offers = list(grouped.values())
+            logger.info(f"[{self.name}] Filtered and deduplicated down to {len(offers)} matching offers.")
 
         except Exception as e:
             logger.error(f"[{self.name}] Error during offer ingestion: {e}")

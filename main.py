@@ -158,6 +158,11 @@ def run() -> None:
             if db.is_seen(offer.portal, offer.id):
                 continue
 
+            if db.is_duplicate_offer(offer.company, offer.title, within_days=30):
+                logger.info(f"Skipping duplicate vacancy across locations/portals: [{offer.company}] {offer.title}")
+                db.save_offer(offer, is_notified=False, ai_summary="Duplikat oferty z innej lokalizacji lub innego portalu.")
+                continue
+
             new_offers_found += 1
             logger.info(f"New posting detected: [{offer.company}] {offer.title} ({offer.portal})")
 

@@ -1,5 +1,42 @@
+import re
 from typing import List, Optional
 from pydantic import BaseModel, Field
+
+
+def normalize_company(name: str) -> str:
+    """Normalizes company names by stripping legal forms and punctuation for cross-location and cross-portal deduplication."""
+    if not name:
+        return ""
+    n = name.lower()
+    n = re.sub(r'\(poland\)', '', n)
+    n = re.sub(r'sp[oó]łka z o\.?\s*o\.?', '', n)
+    n = re.sub(r'sp\.\s*z\s*o\.?\s*o\.?', '', n)
+    n = re.sub(r'sp\s*z\s*o\s*o', '', n)
+    n = re.sub(r's\.a\.', '', n)
+    n = re.sub(r'\bsa\b', '', n)
+    n = re.sub(r'sp\.\s*k\.', '', n)
+    n = re.sub(r'\bgmbh\b', '', n)
+    n = re.sub(r'\bltd\.?\b', '', n)
+    n = re.sub(r'[^\w\s]', '', n)
+    return ' '.join(n.split())
+
+
+def normalize_title(title: str) -> str:
+    """Normalizes job titles by stripping contract types, remote tags, and noise for fuzzy deduplication."""
+    if not title:
+        return ""
+    t = title.lower()
+    t = re.sub(r'\(b2b.*?\)', '', t)
+    t = re.sub(r'\(uop.*?\)', '', t)
+    t = re.sub(r'\(m/k\)', '', t)
+    t = re.sub(r'\(k/m\)', '', t)
+    t = re.sub(r'\(m/f/x\)', '', t)
+    t = re.sub(r'\(f/m/x\)', '', t)
+    t = re.sub(r'\(remote\)', '', t)
+    t = re.sub(r'\(zdalnie\)', '', t)
+    t = re.sub(r'[\-–—]\s*(b2b|remote|zdalnie).*', '', t)
+    t = re.sub(r'[^\w\s]', '', t)
+    return ' '.join(t.split())
 
 
 class JobOffer(BaseModel):

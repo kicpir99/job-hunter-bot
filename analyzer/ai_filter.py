@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import time
 from typing import Tuple, Optional
 from config import GEMINI_API_KEY, GEMINI_MODEL
@@ -87,12 +88,13 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
                     contents=prompt,
                 )
                 if response and response.text:
+                    time.sleep(2.0)
                     break
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    logger.warning("Rate limit encountered. Backing off briefly...")
-                    time.sleep(4.0)
+                    logger.warning("Rate limit encountered. Backing off 6s...")
+                    time.sleep(6.0)
                 else:
                     logger.warning(f"Model {current_model} call failed ({e}), attempting fallback...")
 
@@ -131,20 +133,82 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
             return self._heuristic_fallback(offer)
 
     def _fast_heuristic_check(self, offer: JobOffer) -> Tuple[bool, str]:
+        """
+        Fast deterministic screening for seniority, years of experience, blacklisted roles, and language requirements.
+        Prevents wasting LLM tokens on obviously mismatched postings.
+        """
         title_lower = offer.title.lower()
+        sen_text = " ".join(offer.seniority).lower()
+        combined_sen = f"{title_lower} {sen_text}"
 
-        for bad_role in CANDIDATE_PROFILE["blacklisted_roles"]:
+        has_junior = any(k in combined_sen for k in ["junior", "trainee", "intern", "staż", "staz", "praktyk"])
+
+        # 1. Definite Senior / Lead / Principal / Architect exclusions
+        SENIOR_KEYWORDS = [
+            r"\bsenior\b", r"\blead\b", r"\bprincipal\b", r"\barchitect\b",
+            r"\bexpert\b", r"\bstaff\b", r"\bmanager\b", r"\bkierownik\b",
+            r"\bdyrektor\b", r"\bhead\s+of\b", r"\bstarszy\b"
+        ]
+        for pat in SENIOR_KEYWORDS:
+            if re.search(pat, combined_sen):
+                return False, "Odrzucono automatycznie: rola Senior / Lead / Architect."
+
+        # 2. Mid / Regular exclusions (unless junior is explicitly mentioned)
+        MID_KEYWORDS = [r"\bmid\b", r"\bmiddle\b", r"\bregular\b", r"\bsamodzielny\b"]
+        if not has_junior:
+            for pat in MID_KEYWORDS:
+                if re.search(pat, combined_sen):
+                    return False, "Odrzucono automatycznie: rola Mid / Regular."
+
+        # 3. Deterministic Regex for Years of Commercial Experience in description & requirements
+        desc_and_reqs = f"{offer.description or ''} {' '.join(offer.requirements)}".lower()
+
+        EXPERIENCE_EXCLUDE_PATTERNS = [
+            # 1-3 years, 2-4 years, 3-5 lat
+            r'(?:[1-9]\s*[\-–—]\s*[2-9]|[2-9]\+?)\s*(?:years?|lat|lata|roku|rok)\b',
+            # min / minimum / co najmniej 2 lata / at least 2 years
+            r'(?:min\.?|minimum|co\s+najmniej|przynajmniej|at\s+least)\s*[2-9]\s*(?:years?|lat|lata|roku|rok)\b',
+            # commercial experience / doświadczenia komercyjnego
+            r'(?:commercial\s+experience|do[sś]wiadczeni[ae]\s+komercyjn[a-z]*)\s*[:\-–]?\s*(?:min\.?|minimum)?\s*(?:[1-9]\s*[\-–—]\s*[2-9]|[2-9]\+?)\s*(?:years?|lat|lata|roku|rok)?\b',
+            # 2+ years of commercial
+            r'(?:[1-9]\s*[\-–—]\s*[2-9]|[2-9]\+?)\s*(?:years?|lat|lata)?\s*(?:of\s+)?(?:commercial\s+experience|do[sś]wiadczenia\s+komercyjnego)',
+        ]
+
+        for pat in EXPERIENCE_EXCLUDE_PATTERNS:
+            match = re.search(pat, desc_and_reqs)
+            if match:
+                matched_snippet = match.group(0)
+                if not re.search(r'0\s*[\-–—]\s*[12]', matched_snippet):
+                    return False, f"Odrzucono automatycznie: wymagane doświadczenie > 1 roku ('{matched_snippet}')."
+
+        # 4. Role blacklist
+        for bad_role in CANDIDATE_PROFILE.get("blacklisted_roles", []):
             if bad_role in title_lower and "python" not in title_lower:
                 return False, f"Odrzucono ze względu na profil: {bad_role}"
 
-        all_text = (offer.title + " " + " ".join(offer.requirements)).lower()
-        for dis_lang in CANDIDATE_PROFILE["disallowed_foreign_languages"]:
-            if f"język {dis_lang}" in all_text or f"znajomość języka {dis_lang}" in all_text:
+        # 5. Language requirements
+        all_text = f"{title_lower} {' '.join(offer.requirements).lower()} {offer.description or ''}".lower()
+        for dis_lang in CANDIDATE_PROFILE.get("disallowed_foreign_languages", []):
+            if f"język {dis_lang}" in all_text or f"znajomość języka {dis_lang}" in all_text or f"{dis_lang} b2" in all_text or f"{dis_lang} c1" in all_text:
                 return False, f"Odrzucono ze względu na wymóg języka obcego ({dis_lang})."
 
         return True, "OK"
 
     def _heuristic_fallback(self, offer: JobOffer) -> Tuple[bool, str]:
+        """
+        Conservative fallback used ONLY when LLM API is unavailable.
+        Strictly requires explicit Junior/Intern indicators to avoid leaking ambiguous postings.
+        """
+        is_ok, reason = self._fast_heuristic_check(offer)
+        if not is_ok:
+            return False, reason
+
+        title_and_sen = (offer.title + " " + " ".join(offer.seniority)).lower()
+        is_explicit_entry = any(k in title_and_sen for k in ["junior", "trainee", "intern", "staż", "staz", "praktyk"])
+
+        if not is_explicit_entry:
+            return False, "Tryb awaryjny (brak limitu AI): odrzucono ofertę bez jednoznacznego oznaczenia Junior/Staż."
+
         matched = []
         for tech in ["Python", "Django", "FastAPI", "Flask", "PostgreSQL", "Docker", "React", "TypeScript", "SQL"]:
             if any(tech.lower() == req.lower() for req in offer.requirements):

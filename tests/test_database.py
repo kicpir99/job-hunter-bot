@@ -81,4 +81,34 @@ def test_application_tracking(tmp_path):
     assert applied[0]["applied_at"] is not None
 
 
+def test_semantic_deduplication_across_portals_and_locations(tmp_path):
+    test_db_path = tmp_path / "test_jobs.db"
+    db = JobDatabase(db_path=test_db_path)
+
+    offer_wroclaw = JobOffer(
+        id="epam-wroclaw-1",
+        portal="justjoin",
+        title="Python Trainee",
+        company="EPAM Systems",
+        url="https://justjoin.it/offers/epam-wroclaw",
+        location="Wrocław",
+        is_remote=True
+    )
+    db.save_offer(offer_wroclaw, is_notified=True)
+
+    # Next offer is the same job in Warsaw on another portal / slug
+    assert db.is_duplicate_offer(
+        company="EPAM Systems (Poland) sp. z o.o.",
+        title="Python Trainee (Remote)",
+        within_days=30
+    )
+
+    # Completely different job should not be duplicate
+    assert not db.is_duplicate_offer(
+        company="Google",
+        title="Junior Python Engineer",
+        within_days=30
+    )
+
+
 

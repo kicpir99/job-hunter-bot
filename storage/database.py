@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from config import DATABASE_PATH
-from models import JobOffer
+from models import JobOffer, normalize_company, normalize_title
 
 
 class JobDatabase:
@@ -72,6 +72,26 @@ class JobDatabase:
                 (portal, external_id)
             )
             return cursor.fetchone() is not None
+
+    def is_duplicate_offer(self, company: str, title: str, within_days: int = 30) -> bool:
+        """Checks whether an identical offer from the same company has already been processed or notified recently."""
+        norm_target_company = normalize_company(company)
+        norm_target_title = normalize_title(title)
+
+        if not norm_target_company or not norm_target_title:
+            return False
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT company, title FROM seen_offers WHERE created_at > datetime('now', ?)",
+                (f"-{within_days} days",)
+            )
+            for row in cursor.fetchall():
+                if (normalize_company(row[0]) == norm_target_company and 
+                    normalize_title(row[1]) == norm_target_title):
+                    return True
+            return False
 
     def save_offer(self, offer: JobOffer, is_notified: bool = False, ai_summary: Optional[str] = None) -> int:
         """Persists a new job offer record with its metadata, returning its numeric database ID."""
