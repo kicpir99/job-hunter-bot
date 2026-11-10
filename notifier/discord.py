@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 import httpx
 
@@ -9,49 +10,72 @@ logger = logging.getLogger(__name__)
 
 
 def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None) -> Dict[str, Any]:
-    """Constructs a Discord Embed card with candidate alignment indicators."""
+    """Constructs an ultra-readable, symmetrical Discord Embed card with candidate alignment indicators."""
+    
+    # 1. Location and mode formatting
+    loc_display = offer.location
+    if offer.is_remote:
+        loc_display = f"{offer.location} (🌐 Remote)"
+    else:
+        loc_display = f"{offer.location} (🏢 Biuro)"
+
+    # 2. Row 1: Core Job Metrics (3 inline columns)
     fields = [
-        {"name": "🏢 Firma", "value": offer.company, "inline": True},
-        {"name": "💰 Wynagrodzenie", "value": offer.salary or "Brak podanych widełek", "inline": True},
-        {"name": "📍 Lokalizacja", "value": f"{offer.location} {'(100% Zdalnie)' if offer.is_remote else ''}", "inline": True},
+        {"name": "🏢 Firma", "value": f"**{offer.company}**", "inline": True},
+        {"name": "💰 Wynagrodzenie", "value": f"**{offer.salary or 'Brak podanych widełek'}**", "inline": True},
+        {"name": "📍 Lokalizacja", "value": loc_display, "inline": True},
     ]
 
-    if offer.match_score:
-        score_icon = "🔥" if offer.match_score == "Wysokie" else "⚡"
-        fields.append({
-            "name": f"{score_icon} Dopasowanie do profilu", 
-            "value": f"**{offer.match_score}**", 
-            "inline": True
-        })
+    # 3. Row 2: Candidate Alignment & Source Grid (3 inline columns)
+    score_val = f"🔥 **{offer.match_score}**" if offer.match_score == "Wysokie" else f"⚡ **{offer.match_score or 'Średnie'}**"
+    student_val = "⚠️ **Wymagany**" if offer.requires_student else "✅ **Brak wymogu**"
+    portal_val = f"[{offer.portal.upper()} ↗]({offer.url})"
 
+    fields.extend([
+        {"name": "🎯 Dopasowanie (AI)", "value": score_val, "inline": True},
+        {"name": "🎓 Status studenta", "value": student_val, "inline": True},
+        {"name": "🌐 Portal", "value": portal_val, "inline": True},
+    ])
+
+    # 4. Tech Stack Breakdown (Candidate Match vs Additional)
     if offer.matched_skills:
-        matched_str = ", ".join(f"`{s}`" for s in offer.matched_skills)
+        matched_str = " • ".join(f"`{s}`" for s in offer.matched_skills)
         fields.append({
-            "name": "✅ Zgodność ze stosem", 
-            "value": matched_str, 
-            "inline": True
-        })
-
-    if offer.requires_student:
-        fields.append({
-            "name": "🎓 Wymóg formalny", 
-            "value": "⚠️ *Oferta w treści wymaga statusu studenta.*", 
+            "name": "🟢 Pokryte technologie z Twojego profilu",
+            "value": matched_str,
             "inline": False
         })
 
     if offer.requirements:
-        reqs_str = ", ".join(f"`{r}`" for r in offer.requirements[:8])
-        fields.append({"name": "🛠 Wymagania ogłoszenia", "value": reqs_str, "inline": False})
+        matched_lower = {s.lower() for s in (offer.matched_skills or [])}
+        additional = [r for r in offer.requirements if r.lower() not in matched_lower]
+        if additional:
+            add_str = " • ".join(f"`{r}`" for r in additional[:8])
+            fields.append({
+                "name": "📌 Dodatkowe wymagania roli",
+                "value": add_str,
+                "inline": False
+            })
+        elif not offer.matched_skills:
+            reqs_str = " • ".join(f"`{r}`" for r in offer.requirements[:8])
+            fields.append({"name": "🛠 Wymagania ogłoszenia", "value": reqs_str, "inline": False})
 
+    # 5. AI Executive Summary & Application Insights (Blockquote format)
     if ai_summary:
-        fields.append({"name": "🤖 Analiza AI", "value": ai_summary.strip(), "inline": False})
+        quoted_summary = "\n".join(f"> {line}" for line in ai_summary.strip().split("\n") if line.strip())
+        fields.append({
+            "name": "🤖 Analiza AI & Wskazówki rekrutacyjne",
+            "value": quoted_summary,
+            "inline": False
+        })
 
+    # 6. Dynamic Color Scheme
     if offer.requires_student:
-        color = 0xf39c12
-    elif offer.is_remote:
-        color = 0x2ecc71
+        color = 0xF1C40F  # Warning Amber
+    elif offer.match_score == "Wysokie" or offer.is_remote:
+        color = 0x2ECC71  # Vibrant Emerald Green
     else:
-        color = 0x3498db
+        color = 0x3498DB  # Tech Blue
 
     badge_title = f"🎓 [DLA STUDENTA] {offer.title}" if offer.requires_student else f"💼 {offer.title}"
 
@@ -60,8 +84,9 @@ def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None) -> D
         "url": offer.url,
         "color": color,
         "fields": fields,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "footer": {
-            "text": f"Źródło: {offer.portal.upper()} • Kliknij tytuł, aby otworzyć ofertę"
+            "text": f"ID: {offer.id} • Użyj /list na czacie, aby przygotować aplikację"
         }
     }
 
