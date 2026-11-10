@@ -81,7 +81,12 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
 """
 
         response = None
-        for current_model in [self.model, "gemini-3.5-flash"]:
+        models_to_try = [self.model]
+        for candidate in ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash"]:
+            if candidate not in models_to_try:
+                models_to_try.append(candidate)
+
+        for current_model in models_to_try:
             try:
                 response = self.client.models.generate_content(
                     model=current_model,
@@ -93,8 +98,8 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    logger.warning("Rate limit encountered. Backing off 6s...")
-                    time.sleep(6.0)
+                    logger.warning(f"Quota exhausted on {current_model}. Switching to alternative model...")
+                    time.sleep(2.0)
                 else:
                     logger.warning(f"Model {current_model} call failed ({e}), attempting fallback...")
 

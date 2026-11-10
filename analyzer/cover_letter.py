@@ -123,11 +123,27 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
 }}
 """
 
+        response = None
+        models_to_try = [self.model]
+        for candidate in ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash"]:
+            if candidate not in models_to_try:
+                models_to_try.append(candidate)
+
+        for current_model in models_to_try:
+            try:
+                response = self.client.models.generate_content(
+                    model=current_model,
+                    contents=prompt,
+                )
+                if response and response.text:
+                    break
+            except Exception as e:
+                logger.warning(f"Cover letter generation on {current_model} failed ({e}), attempting next model...")
+
+        if not response or not response.text:
+            return {"error": "Wyczerpano limity lub wszystkie modele Gemini są chwilowo niedostępne."}
+
         try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-            )
             raw = response.text.strip()
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
@@ -138,6 +154,6 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
             return parsed
 
         except Exception as e:
-            logger.error(f"Failed to generate application payload: {e}")
-            return {"error": f"Błąd generowania przez Gemini AI: {e}"}
+            logger.error(f"Failed to parse cover letter payload: {e}")
+            return {"error": f"Błąd parsowania odpowiedzi od Gemini AI: {e}"}
 
