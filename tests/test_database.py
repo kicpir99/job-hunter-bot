@@ -26,3 +26,31 @@ def test_database_deduplication(tmp_path):
     assert stats["total_notified"] == 1
     assert stats["by_portal"].get("nofluffjobs") == 1
 
+
+def test_database_cleanup(tmp_path):
+    test_db_path = tmp_path / "test_jobs.db"
+    db = JobDatabase(db_path=test_db_path)
+
+    offer = JobOffer(
+        id="old-1",
+        portal="nofluffjobs",
+        title="Python Dev",
+        company="OldCorp",
+        url="https://example.com",
+    )
+    db.save_offer(offer)
+
+    # Artificially set created_at to 90 days ago
+    with db._get_connection() as conn:
+        conn.execute("UPDATE seen_offers SET created_at = datetime('now', '-90 days') WHERE id = 1")
+        conn.commit()
+
+    # Offer should still exist before cleanup
+    assert db.is_seen("nofluffjobs", "old-1")
+
+    # Cleanup with 60 days retention
+    deleted = db.cleanup_old_offers(retention_days=60)
+    assert deleted == 1
+    assert not db.is_seen("nofluffjobs", "old-1")
+
+

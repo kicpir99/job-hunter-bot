@@ -57,6 +57,7 @@ def run() -> None:
     parser.add_argument("--test-telegram", action="store_true", help="Dispatches test message to Telegram bot")
     parser.add_argument("--stats", action="store_true", help="Displays current database tracking metrics")
     parser.add_argument("--report", action="store_true", help="Generates comprehensive IT market intelligence report")
+    parser.add_argument("--cleanup", type=int, default=None, metavar="DAYS", help="Purges database records older than DAYS (default: 60 days in automated cycle)")
     parser.add_argument("--cover-letter", type=str, metavar="QUERY", help="Generates bespoke cover letter and LinkedIn pitch for company or offer ID")
     args = parser.parse_args()
 
@@ -73,6 +74,11 @@ def run() -> None:
         logger.info(f"Total postings tracked: {stats['total_tracked']}")
         logger.info(f"Total dispatched: {stats['total_notified']}")
         logger.info(f"Breakdown by portal: {stats['by_portal']}")
+        return
+
+    if args.cleanup is not None:
+        pruned = db.cleanup_old_offers(retention_days=args.cleanup)
+        logger.info(f"Database hygiene complete: purged {pruned} offers older than {args.cleanup} days.")
         return
 
     if args.report:
@@ -124,6 +130,10 @@ def run() -> None:
         return
 
     logger.info("=== Starting job aggregation and screening cycle ===")
+    pruned = db.cleanup_old_offers(retention_days=60)
+    if pruned > 0:
+        logger.info(f"Retention policy applied: purged {pruned} stale vacancies older than 60 days.")
+
     initial_stats = db.get_stats()
     logger.info(f"Database initialized. Currently tracking {initial_stats['total_tracked']} offers.")
 

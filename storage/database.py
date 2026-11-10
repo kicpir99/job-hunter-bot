@@ -167,3 +167,24 @@ class JobDatabase:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM seen_offers")
             return [dict(r) for r in cursor.fetchall()]
+
+    def cleanup_old_offers(self, retention_days: int = 60) -> int:
+        """Purges vacancies older than retention_days to maintain relevance and compact size."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM seen_offers WHERE created_at < datetime('now', ?)",
+                (f"-{retention_days} days",)
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+
+        if deleted > 0:
+            vacuum_conn = self._get_connection()
+            try:
+                vacuum_conn.isolation_level = None
+                vacuum_conn.execute("VACUUM")
+            finally:
+                vacuum_conn.close()
+
+        return deleted
