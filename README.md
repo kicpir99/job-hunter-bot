@@ -14,13 +14,14 @@
 
 ## 📌 Overview
 
-**Job Hunter Agent** is an end-to-end Python pipeline that continuously monitors the Polish IT job market (*Just Join IT, Pracuj.pl / TheProtocol, No Fluff Jobs, BulldogJob*), aggregates junior and intern software developer positions, and filters them using an **LLM decision engine (Google Gemini)** to match a specific candidate profile.
+**Job Hunter Agent** is an end-to-end Python pipeline that continuously monitors the Polish IT job market (*Just Join IT, Pracuj.pl / TheProtocol, No Fluff Jobs, BulldogJob*), aggregates **junior, intern, and trainee** software developer positions (Remote & Wrocław), and screens them using an **LLM decision engine (Google Gemini)** to match a specific candidate profile.
 
 Unlike naive scrapers or static RSS readers, this engine:
 * Bypasses modern anti-bot protections (TLS fingerprinting, Cloudflare, Akamai) using pure network-level impersonation without memory-heavy headless browsers.
-* Evaluates context and nuances in vacancy descriptions (detecting "fake juniors" demanding 3+ years of commercial experience).
-* Delivers instant mobile push notifications via Discord Webhooks with rich interactive embeds and CV matching analysis.
-* Operates 24/7 fully autonomously using GitHub Actions cron workflows with zero hosting costs.
+* Evaluates context and nuances in vacancy descriptions (detecting "fake juniors" demanding 3+ years of commercial experience or unmentioned student requirements).
+* Delivers instant mobile push notifications via Discord Webhooks featuring **symmetrical 3-column embed dashboards, stack-gap analysis, and native one-click application buttons**.
+* Includes a **Personal ATS (Applicant Tracking System)** and **AI Cover Letter Generator** that pulls live repository data from the candidate's GitHub portfolio (`kicpir99`).
+* Operates 24/7 fully autonomously using GitHub Actions cron workflows with zero hosting costs and automated database hygiene.
 
 ---
 
@@ -88,6 +89,14 @@ Modern job platforms render content via Client-Side or React Server Components a
 * Scheduled cron job running every 30 minutes during business hours (7:30 – 18:30 CET, Monday through Friday).
 * Automatically commits state updates (`jobs.db`) back to the repository using atomic git transactions.
 * Total monthly runtime: ~500 minutes out of GitHub's 2,000 free runner minutes.
+
+### 5. Automated Application Kit & Personal ATS
+* **AI Cover Letter & InMail Pitch:** Synthesizes bespoke cover letters and concise LinkedIn outreach messages grounded in candidate's live GitHub projects (`BeatHub`, `KuzenBot`, `pasieka-wedrowna-usza`).
+* **Discord ATS Operations:** Candidate can track applied positions directly from chat using `/aplikowano <id>` and inspect current pipeline statuses via `/aplikacje`.
+
+### 6. Production Resilience & Dead-Man Alerting
+* Scraper isolation prevents a failure in one portal from breaking the pipeline.
+* Global crash interception sends instant Discord alerts in the event of upstream API quota issues or unhandled exceptions.
 
 ---
 
