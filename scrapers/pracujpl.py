@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class PracujPlScraper(BaseScraper):
-    """Scraper pobierający oferty IT z portalu Pracuj.pl (obejmujący również TheProtocol)."""
+    """Scraper extracting IT job offers from Pracuj.pl and TheProtocol via dehydratedState."""
 
     SEARCH_URL = "https://it.pracuj.pl/praca/python;kw/junior;et"
 
@@ -28,12 +28,11 @@ class PracujPlScraper(BaseScraper):
                 timeout=15
             )
             if r.status_code != 200:
-                logger.warning(f"[{self.name}] Błąd odpowiedzi HTTP: {r.status_code}")
+                logger.warning(f"[{self.name}] HTTP response status: {r.status_code}")
                 return []
 
             idx = r.text.find('__NEXT_DATA__')
             if idx == -1:
-                logger.warning(f"[{self.name}] Nie znaleziono __NEXT_DATA__.")
                 return []
 
             start = r.text.find('>', idx) + 1
@@ -48,22 +47,19 @@ class PracujPlScraper(BaseScraper):
                     raw_offers = q_data["groupedOffers"]
                     break
 
-            logger.info(f"[{self.name}] Znaleziono {len(raw_offers)} surowych ogłoszeń.")
+            logger.info(f"[{self.name}] Ingested {len(raw_offers)} raw postings.")
 
             for o in raw_offers:
                 offer = self._parse_offer(o)
-                if not offer:
-                    continue
-
-                if not self._is_location_valid(offer):
+                if not offer or not self._is_location_valid(offer):
                     continue
 
                 offers.append(offer)
 
-            logger.info(f"[{self.name}] Po filtracji lokalizacji: {len(offers)} pasujących ofert.")
+            logger.info(f"[{self.name}] Filtered down to {len(offers)} matching offers.")
 
         except Exception as e:
-            logger.error(f"[{self.name}] Błąd podczas pobierania ofert: {e}")
+            logger.error(f"[{self.name}] Error during offer ingestion: {e}")
 
         return offers
 
@@ -71,10 +67,8 @@ class PracujPlScraper(BaseScraper):
         if offer.is_remote:
             return True
         loc_lower = offer.location.lower()
-        for city in CANDIDATE_PROFILE["allowed_hybrid_onsite_cities"]:
-            if city in loc_lower:
-                return True
-        return False
+        allowed_cities = CANDIDATE_PROFILE["allowed_hybrid_onsite_cities"]
+        return any(city in loc_lower for city in allowed_cities)
 
     def _parse_offer(self, o: dict) -> Optional[JobOffer]:
         sub_offers = o.get("offers", [])
@@ -90,19 +84,13 @@ class PracujPlScraper(BaseScraper):
         title = o.get("jobTitle") or "Brak tytułu"
         company = o.get("companyName") or "Nieznana firma"
 
-        # Lokalizacja i praca zdalna
         work_modes = o.get("workModes", [])
         is_remote = o.get("isRemoteWorkAllowed", False) or any("zdalna" in str(m).lower() for m in work_modes)
         workplace = primary_sub.get("displayWorkplace") or "Polska"
         location = "Zdalnie" if is_remote else workplace
 
-        # Wynagrodzenie
         salary_str = o.get("salaryDisplayText") or None
-
-        # Poziom
         levels = o.get("positionLevels", ["Junior"])
-
-        # Technologie
         reqs = o.get("technologies", [])
 
         return JobOffer(
@@ -117,4 +105,3 @@ class PracujPlScraper(BaseScraper):
             is_remote=is_remote,
             requirements=reqs
         )
-

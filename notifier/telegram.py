@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def format_offer_message(offer: JobOffer, ai_summary: Optional[str] = None) -> str:
-    """Tworzy estetyczną wiadomość HTML do wysłania na Telegram z dopasowaniem do profilu."""
+    """Formats an HTML payload for Telegram messaging."""
     title_escaped = html.escape(offer.title)
     company_escaped = html.escape(offer.company)
     location_escaped = html.escape(offer.location)
@@ -32,19 +32,19 @@ def format_offer_message(offer: JobOffer, ai_summary: Optional[str] = None) -> s
 
     if offer.match_score:
         score_icon = "🔥" if offer.match_score == "Wysokie" else "⚡"
-        msg_lines.append(f"{score_icon} <b>Dopasowanie do CV:</b> <b>{offer.match_score}</b>")
+        msg_lines.append(f"{score_icon} <b>Dopasowanie:</b> <b>{offer.match_score}</b>")
 
     if offer.matched_skills:
         skills_str = ", ".join(offer.matched_skills)
-        msg_lines.append(f"✅ <b>Twój stack w ofercie:</b> <code>{html.escape(skills_str)}</code>")
+        msg_lines.append(f"✅ <b>Zgodność:</b> <code>{html.escape(skills_str)}</code>")
 
     if offer.requires_student:
-        msg_lines.append("\n⚠️ <i>Uwaga: oferta w treści wymaga statusu studenta.</i>")
+        msg_lines.append("\n⚠️ <i>Wymóg formalny: status studenta.</i>")
 
     if ai_summary:
         msg_lines.append(f"\n🤖 <b>Analiza AI:</b>\n<i>{html.escape(ai_summary.strip())}</i>")
 
-    msg_lines.append(f"\n🔗 <a href=\"{offer.url}\">👉 Kliknij tutaj, aby zobaczyć i aplikować</a>")
+    msg_lines.append(f"\n🔗 <a href=\"{offer.url}\">👉 Aplikuj bezpośrednio</a>")
 
     return "\n".join(msg_lines)
 
@@ -54,12 +54,11 @@ def send_telegram_message(
     bot_token: Optional[str] = None,
     chat_id: Optional[str] = None
 ) -> bool:
-    """Wysyła wiadomość HTML na podany czat Telegrama."""
+    """Dispatches formatted message via Telegram Bot API."""
     token = bot_token or TELEGRAM_BOT_TOKEN
     target_chat = chat_id or TELEGRAM_CHAT_ID
 
     if not token or not target_chat:
-        logger.warning("Brak skonfigurowanego TELEGRAM_BOT_TOKEN lub TELEGRAM_CHAT_ID. Wiadomość nie została wysłana.")
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -74,11 +73,11 @@ def send_telegram_message(
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(url, json=payload)
             if resp.status_code == 200:
-                logger.info("Powiadomienie na Telegram wysłane pomyślnie!")
+                logger.info("Notification successfully delivered to Telegram.")
                 return True
             else:
-                logger.error(f"Telegram API zwróciło błąd {resp.status_code}: {resp.text}")
+                logger.error(f"Telegram API error {resp.status_code}: {resp.text}")
                 return False
     except Exception as e:
-        logger.error(f"Nie udało się wysłać wiadomości na Telegram: {e}")
+        logger.error(f"Failed to deliver Telegram notification: {e}")
         return False

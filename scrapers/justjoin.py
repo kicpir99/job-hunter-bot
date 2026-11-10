@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class JustJoinScraper(BaseScraper):
-    """Scraper pobierający oferty z portalu Just Join IT."""
+    """Scraper extracting job postings from Just Join IT via Next.js RSC payload."""
 
     SEARCH_URL = "https://justjoin.it/job-offers/all-locations/python?experience-level=junior"
     OFFER_URL_PREFIX = "https://justjoin.it/offers/"
@@ -30,16 +30,15 @@ class JustJoinScraper(BaseScraper):
                 timeout=15
             )
             if r.status_code != 200:
-                logger.warning(f"[{self.name}] Błąd odpowiedzi HTTP: {r.status_code}")
+                logger.warning(f"[{self.name}] HTTP response status: {r.status_code}")
                 return []
 
-            # Wypakowanie danych z Next.js React Server Components (self.__next_f)
             chunks = re.findall(r'self\.__next_f\.push\(\[\d+,\s*"(.*?)"\]\)', r.text)
             full_text = "".join(chunks).replace('\\"', '"').replace('\\n', '\n')
 
             idx = full_text.find('{"offers":[')
             if idx == -1:
-                logger.warning(f"[{self.name}] Nie znaleziono bloku 'offers' w odpowiedzi.")
+                logger.warning(f"[{self.name}] Offers payload block not found in DOM.")
                 return []
 
             start = idx + len('{"offers":')
@@ -54,27 +53,22 @@ class JustJoinScraper(BaseScraper):
                         break
 
             if end == -1:
-                logger.warning(f"[{self.name}] Nie udało się domknąć tablicy JSON ofert.")
                 return []
 
             raw_offers = json.loads(full_text[start:end])
-            logger.info(f"[{self.name}] Znaleziono {len(raw_offers)} surowych ogłoszeń.")
+            logger.info(f"[{self.name}] Ingested {len(raw_offers)} raw postings.")
 
             for o in raw_offers:
                 offer = self._parse_offer(o)
-                if not offer:
-                    continue
-
-                # Filtr lokalizacji
-                if not self._is_location_valid(offer):
+                if not offer or not self._is_location_valid(offer):
                     continue
 
                 offers.append(offer)
 
-            logger.info(f"[{self.name}] Po filtracji lokalizacji: {len(offers)} pasujących ofert.")
+            logger.info(f"[{self.name}] Filtered down to {len(offers)} matching offers.")
 
         except Exception as e:
-            logger.error(f"[{self.name}] Błąd podczas pobierania ofert: {e}")
+            logger.error(f"[{self.name}] Error during offer ingestion: {e}")
 
         return offers
 
@@ -82,10 +76,8 @@ class JustJoinScraper(BaseScraper):
         if offer.is_remote:
             return True
         loc_lower = offer.location.lower()
-        for city in CANDIDATE_PROFILE["allowed_hybrid_onsite_cities"]:
-            if city in loc_lower:
-                return True
-        return False
+        allowed_cities = CANDIDATE_PROFILE["allowed_hybrid_onsite_cities"]
+        return any(city in loc_lower for city in allowed_cities)
 
     def _parse_offer(self, o: dict) -> Optional[JobOffer]:
         slug = o.get("slug")
@@ -101,7 +93,6 @@ class JustJoinScraper(BaseScraper):
         is_remote = (workplace_type == "remote") or ("remote" in city.lower())
         location = "Zdalnie" if is_remote else city
 
-        # Wynagrodzenie
         salary_str = None
         emp_types = o.get("employmentTypes", [])
         for emp in emp_types:
@@ -119,12 +110,8 @@ class JustJoinScraper(BaseScraper):
                 salary_str = f"do {int(t)} {curr} ({etype})"
                 break
 
-        # Umiejętności
         reqs = o.get("requiredSkills", [])
-        if isinstance(reqs, list):
-            requirements = [r if isinstance(r, str) else r.get("name", "") for r in reqs if r]
-        else:
-            requirements = []
+        requirements = [r if isinstance(r, str) else r.get("name", "") for r in reqs if r] if isinstance(reqs, list) else []
 
         return JobOffer(
             id=str(slug),
@@ -138,4 +125,3 @@ class JustJoinScraper(BaseScraper):
             is_remote=is_remote,
             requirements=requirements
         )
-

@@ -1,20 +1,20 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from config import DATABASE_PATH
 from models import JobOffer
 
 
 class JobDatabase:
-    """Zarządza lokalną bazą SQLite do deduplikacji i śledzenia statusu ofert."""
+    """Manages SQLite storage for deduplication, state tracking, and analytical reporting."""
 
     def __init__(self, db_path: Path = DATABASE_PATH):
         self.db_path = db_path
         self._ensure_dir()
         self.init_db()
 
-    def _ensure_dir(self):
+    def _ensure_dir(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -22,8 +22,8 @@ class JobDatabase:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def init_db(self):
-        """Inicjalizuje schemat tabeli, jeśli jeszcze nie istnieje."""
+    def init_db(self) -> None:
+        """Initializes database schema and indexes."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -41,10 +41,11 @@ class JobDatabase:
                     UNIQUE(portal, external_id)
                 )
             """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_seen_portal_id ON seen_offers (portal, external_id)")
             conn.commit()
 
     def is_seen(self, portal: str, external_id: str) -> bool:
-        """Sprawdza, czy oferta o danym ID z danego portalu została już wcześniej zapisana."""
+        """Checks whether a given offer has already been processed."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -53,8 +54,8 @@ class JobDatabase:
             )
             return cursor.fetchone() is not None
 
-    def save_offer(self, offer: JobOffer, is_notified: bool = False, ai_summary: Optional[str] = None):
-        """Zapisuje nową ofertę w bazie danych."""
+    def save_offer(self, offer: JobOffer, is_notified: bool = False, ai_summary: Optional[str] = None) -> None:
+        """Persists a new job offer record."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -70,12 +71,12 @@ class JobDatabase:
                 offer.salary or "Brak podanych widełek",
                 1 if is_notified else 0,
                 ai_summary,
-                datetime.utcnow().isoformat()
+                datetime.now(timezone.utc).isoformat()
             ))
             conn.commit()
 
-    def mark_as_notified(self, portal: str, external_id: str):
-        """Oznacza ofertę jako wysłaną w powiadomieniu."""
+    def mark_as_notified(self, portal: str, external_id: str) -> None:
+        """Updates offer dispatch status to notified."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -84,13 +85,20 @@ class JobDatabase:
             )
             conn.commit()
 
-    def get_stats(self) -> dict:
-        """Zwraca podstawowe statystyki z bazy."""
+    def get_stats(self) -> Dict[str, Any]:
+        """Calculates tracking metrics and breakdown by portal."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*), SUM(is_notified) FROM seen_offers")
+            cursor.execute("SELECT COUNT(*), COALESCE(SUM(is_notified), 0) FROM seen_offers")
             row = cursor.fetchone()
             total = row[0] or 0
             notified = row[1] or 0
-            return {"total_tracked": total, "total_notified": notified}
 
+            cursor.execute("SELECT portal, COUNT(*) FROM seen_offers GROUP BY portal")
+            by_portal = {r[0]: r[1] for r in cursor.fetchall()}
+
+            return {
+                "total_tracked": total,
+                "total_notified": notified,
+                "by_portal": by_portal
+            }

@@ -1,17 +1,23 @@
 import argparse
 import logging
 import sys
+import time
+from typing import List
+
 from storage.database import JobDatabase
-from scrapers.nofluffjobs import NoFluffJobsScraper
-from scrapers.bulldogjob import BulldogJobScraper
-from scrapers.justjoin import JustJoinScraper
-from scrapers.pracujpl import PracujPlScraper
+from scrapers import (
+    BaseScraper,
+    NoFluffJobsScraper,
+    BulldogJobScraper,
+    JustJoinScraper,
+    PracujPlScraper,
+)
 from analyzer.ai_filter import JobOfferAnalyzer
 from notifier.telegram import format_offer_message, send_telegram_message
 from notifier.discord import send_discord_message
 from config import DATABASE_PATH, DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN
+from models import JobOffer
 
-# Konfiguracja logowania
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -22,69 +28,69 @@ logging.basicConfig(
 logger = logging.getLogger("JobHunter")
 
 
-def dispatch_notification(offer, ai_summary: str | None = None) -> bool:
-    """Wysyła powiadomienie na skonfigurowane kanały (Discord i/lub Telegram)."""
-    sent_any = False
+def dispatch_notification(offer: JobOffer, ai_summary: str | None = None) -> bool:
+    """Dispatches notifications across configured messaging backends."""
+    dispatched = False
 
-    # 1. Wysyłka na Discord (jeśli podano Webhook)
     if DISCORD_WEBHOOK_URL:
         if send_discord_message(offer=offer, ai_summary=ai_summary):
-            sent_any = True
+            dispatched = True
 
-    # 2. Wysyłka na Telegram (jeśli skonfigurowano token)
     if TELEGRAM_BOT_TOKEN:
         tg_text = format_offer_message(offer, ai_summary=ai_summary)
         if send_telegram_message(tg_text):
-            sent_any = True
+            dispatched = True
 
     if not DISCORD_WEBHOOK_URL and not TELEGRAM_BOT_TOKEN:
-        logger.warning("Brak skonfigurowanego kanału powiadomień! Uzupełnij DISCORD_WEBHOOK_URL lub TELEGRAM_BOT_TOKEN w .env")
+        logger.warning("No notification backend configured. Check DISCORD_WEBHOOK_URL or TELEGRAM_BOT_TOKEN.")
 
-    return sent_any
+    return dispatched
 
 
-def run():
-    parser = argparse.ArgumentParser(description="Job Hunter Bot - Automatyczny monitor ofert pracy")
-    parser.add_argument("--reset-db", action="store_true", help="Usuwa dotychczasową bazę ofert i tworzy nową")
-    parser.add_argument("--test-discord", action="store_true", help="Wysyła testową wiadomość na Discord")
-    parser.add_argument("--test-telegram", action="store_true", help="Wysyła testową wiadomość na Telegram")
+def run() -> None:
+    parser = argparse.ArgumentParser(description="Job Hunter Bot - Automated Job Monitoring & Screening Engine")
+    parser.add_argument("--reset-db", action="store_true", help="Purges database and reinitializes empty schema")
+    parser.add_argument("--test-discord", action="store_true", help="Dispatches test card to Discord webhook")
+    parser.add_argument("--test-telegram", action="store_true", help="Dispatches test message to Telegram bot")
+    parser.add_argument("--stats", action="store_true", help="Displays current database tracking metrics")
     args = parser.parse_args()
+
+    db = JobDatabase()
 
     if args.reset_db:
         if DATABASE_PATH.exists():
             DATABASE_PATH.unlink()
-            logger.info(f"Baza danych {DATABASE_PATH} została zresetowana.")
-        else:
-            logger.info("Baza danych jeszcze nie istnieje.")
+            logger.info(f"Database at {DATABASE_PATH} successfully reset.")
+        return
+
+    if args.stats:
+        stats = db.get_stats()
+        logger.info(f"Total postings tracked: {stats['total_tracked']}")
+        logger.info(f"Total dispatched: {stats['total_notified']}")
+        logger.info(f"Breakdown by portal: {stats['by_portal']}")
         return
 
     if args.test_discord:
-        logger.info("Wysyłanie testowej wiadomości na Discord...")
-        success = send_discord_message(text="🚀 **Job Hunter Bot:** Testowe powiadomienie Discord działa poprawnie!")
+        success = send_discord_message(text="🚀 **Job Hunter Engine:** Notification test successful.")
         if success:
-            logger.info("Sukces! Sprawdź swój kanał na Discordzie.")
+            logger.info("Test payload delivered to Discord.")
         else:
-            logger.error("Błąd wysyłki. Upewnij się, że uzupełniłeś DISCORD_WEBHOOK_URL w pliku .env")
+            logger.error("Failed to deliver payload. Check DISCORD_WEBHOOK_URL.")
         return
 
     if args.test_telegram:
-        logger.info("Wysyłanie testowej wiadomości na Telegram...")
-        success = send_telegram_message("🚀 <b>Job Hunter Bot:</b> Testowe powiadomienie Telegram działa poprawnie!")
+        success = send_telegram_message("🚀 <b>Job Hunter Engine:</b> Notification test successful.")
         if success:
-            logger.info("Sukces! Sprawdź aplikację Telegram na telefonie.")
+            logger.info("Test payload delivered to Telegram.")
         else:
-            logger.error("Błąd wysyłki. Upewnij się, że uzupełniłeś TELEGRAM_BOT_TOKEN i TELEGRAM_CHAT_ID w pliku .env")
+            logger.error("Failed to deliver payload. Check TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
         return
 
-    logger.info("=== Rozpoczęcie cyklicznego sprawdzania ofert pracy ===")
+    logger.info("=== Starting job aggregation and screening cycle ===")
+    initial_stats = db.get_stats()
+    logger.info(f"Database initialized. Currently tracking {initial_stats['total_tracked']} offers.")
 
-    # 1. Inicjalizacja bazy danych
-    db = JobDatabase()
-    stats_before = db.get_stats()
-    logger.info(f"Baza danych gotowa. Obecnie w bazie: {stats_before['total_tracked']} ofert (w tym {stats_before['total_notified']} wysłanych).")
-
-    # 2. Inicjalizacja scraperów i modułu AI
-    scrapers = [
+    scrapers: List[BaseScraper] = [
         NoFluffJobsScraper(),
         JustJoinScraper(),
         PracujPlScraper(),
@@ -96,44 +102,37 @@ def run():
     new_offers_found = 0
     notifications_sent = 0
 
-    # 3. Pobieranie ofert ze źródeł
     for scraper in scrapers:
-        logger.info(f"Pobieranie ofert ze źródła: {scraper.name}...")
+        logger.info(f"Scraping source: {scraper.name}...")
         offers = scraper.fetch_offers()
         total_fetched += len(offers)
 
         for offer in offers:
-            # Sprawdzenie czy oferta była już wcześniej widziana
             if db.is_seen(offer.portal, offer.id):
                 continue
 
             new_offers_found += 1
-            logger.info(f"Nowa oferta! [{offer.company}] {offer.title}")
+            logger.info(f"New posting detected: [{offer.company}] {offer.title} ({offer.portal})")
 
-            # Analiza oferty przez AI (lub filtr regułowy)
             is_recommended, ai_summary = analyzer.evaluate_offer(offer)
 
             if not is_recommended:
-                logger.info(f"Oferta odrzucona przez filtr: {ai_summary}")
+                logger.info(f"Rejected by screener: {ai_summary}")
                 db.save_offer(offer, is_notified=False, ai_summary=ai_summary)
                 continue
 
-            # Wysłanie powiadomienia (Discord i/lub Telegram)
-            sent_ok = dispatch_notification(offer, ai_summary=ai_summary)
-
-            if sent_ok:
+            dispatched = dispatch_notification(offer, ai_summary=ai_summary)
+            if dispatched:
                 notifications_sent += 1
                 db.save_offer(offer, is_notified=True, ai_summary=ai_summary)
             else:
                 db.save_offer(offer, is_notified=False, ai_summary=ai_summary)
 
-            # Krótka pauza, by nie przekroczyć limitu 15 zapytań/min w AI
-            import time
             time.sleep(1.5)
 
     logger.info(
-        f"=== Zakończono! Pobranych: {total_fetched}, Nowych: {new_offers_found}, "
-        f"Wysłanych powiadomień: {notifications_sent} ==="
+        f"=== Cycle completed! Ingested: {total_fetched}, New: {new_offers_found}, "
+        f"Dispatched: {notifications_sent} ==="
     )
 
 

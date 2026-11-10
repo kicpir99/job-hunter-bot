@@ -3,21 +3,21 @@ from pydantic import BaseModel, Field
 
 
 class JobOffer(BaseModel):
-    """Reprezentuje pojedynczą ofertę pracy w ujednoliconym formacie."""
-    id: str = Field(description="Unikalny identyfikator oferty na danym portalu")
-    portal: str = Field(description="Nazwa portalu (np. nofluffjobs)")
-    title: str = Field(description="Tytuł stanowiska")
-    company: str = Field(description="Nazwa firmy")
-    url: str = Field(description="Bezpośredni link do oferty")
-    seniority: List[str] = Field(default_factory=list, description="Poziom zaawansowania (np. Junior, Trainee)")
-    salary: Optional[str] = Field(default=None, description="Widełki płacowe lub informacja o braku")
-    location: str = Field(default="Polska", description="Lokalizacja (miasto lub Remote)")
-    is_remote: bool = Field(default=False, description="Czy praca w 100% zdalna")
-    requirements: List[str] = Field(default_factory=list, description="Kluczowe technologie / wymagania")
-    description: Optional[str] = Field(default=None, description="Pełny opis stanowiska")
-    published_at: Optional[str] = Field(default=None, description="Data publikacji oferty")
+    """Standardized representation of an aggregated job posting."""
+    id: str = Field(description="Unique identifier of the offer on the source portal")
+    portal: str = Field(description="Source portal identifier (e.g. nofluffjobs, justjoin)")
+    title: str = Field(description="Job title")
+    company: str = Field(description="Hiring company name")
+    url: str = Field(description="Canonical URL to the job posting")
+    seniority: List[str] = Field(default_factory=list, description="Target seniority levels")
+    salary: Optional[str] = Field(default=None, description="Disclosed compensation range")
+    location: str = Field(default="Polska", description="Primary location or Remote")
+    is_remote: bool = Field(default=False, description="Flag indicating 100% remote availability")
+    requirements: List[str] = Field(default_factory=list, description="Extracted required technologies")
+    description: Optional[str] = Field(default=None, description="Full job description body")
+    published_at: Optional[str] = Field(default=None, description="Publication timestamp")
 
-    # Pola wzbogacane przez analizator AI
-    requires_student: bool = Field(default=False, description="Czy oferta bezwzględnie wymaga statusu studenta")
-    match_score: Optional[str] = Field(default=None, description="Stopień dopasowania do profilu kandydata (np. Wysokie / Średnie)")
-    matched_skills: List[str] = Field(default_factory=list, description="Umiejętności kandydata pasujące do oferty")
+    # Fields enriched by AI analysis
+    requires_student: bool = Field(default=False, description="Whether student status is strictly mandated")
+    match_score: Optional[str] = Field(default=None, description="Candidate alignment score")
+    matched_skills: List[str] = Field(default_factory=list, description="Candidate skills matching the offer")

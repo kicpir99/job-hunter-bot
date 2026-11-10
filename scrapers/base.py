@@ -4,16 +4,15 @@ from models import JobOffer
 
 
 class BaseScraper(ABC):
-    """Abstrakcyjna klasa bazowa dla scraperów portali pracy."""
+    """Abstract interface for portal scrapers."""
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Zwraca unikalną nazwę portalu (np. 'nofluffjobs')."""
+        """Returns portal identifier."""
         pass
 
     @abstractmethod
     def fetch_offers(self) -> List[JobOffer]:
-        """Pobiera i parsuje listę najnowszych ofert pracy spełniających kryteria."""
+        """Fetches and parses matching postings into JobOffer domain models."""
         pass
-

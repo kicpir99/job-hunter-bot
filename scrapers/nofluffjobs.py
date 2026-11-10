@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class NoFluffJobsScraper(BaseScraper):
-    """Scraper korzystający z wewnętrznego API serwisu NoFluffJobs z grupowaniem i filtrem lokalizacji."""
+    """Scraper for NoFluffJobs search and posting endpoints."""
 
     SEARCH_URL = "https://nofluffjobs.com/api/search/posting?salaryCurrency=PLN&salaryPeriod=month&region=pl"
     JOB_URL_PREFIX = "https://nofluffjobs.com/pl/job/"
@@ -35,7 +35,6 @@ class NoFluffJobsScraper(BaseScraper):
         }
 
         payload = {"rawSearch": raw_search}
-
         offers: List[JobOffer] = []
         grouped: dict[str, JobOffer] = {}
 
@@ -46,20 +45,14 @@ class NoFluffJobsScraper(BaseScraper):
                 data = response.json()
 
                 postings = data.get("postings", [])
-                logger.info(f"[{self.name}] Znaleziono {len(postings)} surowych ogłoszeń.")
+                logger.info(f"[{self.name}] Ingested {len(postings)} raw postings.")
 
                 for p in postings:
                     offer = self._parse_posting_summary(p)
-                    if not offer:
+                    if not offer or not self._is_location_valid(offer):
                         continue
 
-                    # Sprawdzenie wstępnego filtra lokalizacji w Pythonie
-                    if not self._is_location_valid(offer):
-                        continue
-
-                    # Klucz deduplikacji: firma + tytuł
                     group_key = f"{offer.company.lower().strip()}_{offer.title.lower().strip()}"
-
                     if group_key not in grouped:
                         grouped[group_key] = offer
                     else:
@@ -68,34 +61,22 @@ class NoFluffJobsScraper(BaseScraper):
                             grouped[group_key] = offer
 
                 offers = list(grouped.values())
-                logger.info(f"[{self.name}] Po scaleniu i filtracji lokalizacji: {len(offers)} unikalnych ofert. Pobieranie szczegółów...")
+                logger.info(f"[{self.name}] Filtered down to {len(offers)} deduplicated offers. Fetching details...")
 
-                # Pobranie szczegółów tylko dla unikalnych ofert
                 for o in offers:
                     self._populate_offer_details(o, client)
 
         except Exception as e:
-            logger.error(f"[{self.name}] Błąd podczas pobierania ofert: {e}")
+            logger.error(f"[{self.name}] Error during offer ingestion: {e}")
 
         return offers
 
     def _is_location_valid(self, offer: JobOffer) -> bool:
-        """
-        Sprawdza regułę lokalizacji:
-        - Praca 100% zdalna (Remote) jest zawsze akceptowana.
-        - Praca stacjonarna / hybrydowa musi dotyczyć Wrocławia i okolic.
-        """
         if offer.is_remote:
             return True
-
-        location_lower = offer.location.lower()
+        loc_lower = offer.location.lower()
         allowed_cities = CANDIDATE_PROFILE["allowed_hybrid_onsite_cities"]
-        for city in allowed_cities:
-            if city in location_lower:
-                return True
-
-        logger.info(f"[{self.name}] Odrzucono ofertę poza Wrocławiem bez opcji Remote: {offer.title} ({offer.location})")
-        return False
+        return any(city in loc_lower for city in allowed_cities)
 
     def _parse_posting_summary(self, p: dict) -> Optional[JobOffer]:
         offer_id = p.get("id") or p.get("url")
@@ -107,12 +88,10 @@ class NoFluffJobsScraper(BaseScraper):
         url_slug = p.get("url", offer_id)
         full_url = f"{self.JOB_URL_PREFIX}{url_slug}"
 
-        # Parsowanie poziomu doświadczenia
         seniority = p.get("seniority", [])
         if isinstance(seniority, str):
             seniority = [seniority]
 
-        # Parsowanie wynagrodzenia
         salary_str = None
         sal = p.get("salary")
         if sal and isinstance(sal, dict):
@@ -127,7 +106,6 @@ class NoFluffJobsScraper(BaseScraper):
             elif s_to:
                 salary_str = f"do {int(s_to)} {currency} ({s_type})"
 
-        # Lokalizacja i praca zdalna
         location_data = p.get("location", {})
         is_remote = p.get("fullyRemote", False) or location_data.get("fullyRemote", False)
         
@@ -142,7 +120,6 @@ class NoFluffJobsScraper(BaseScraper):
 
         location = ", ".join(cities[:3]) if cities else ("Zdalnie" if is_remote else "Polska")
 
-        # Wymagania / technologie z kafelków
         requirements = []
         tiles = p.get("tiles", {}).get("values", [])
         for tile in tiles:
@@ -150,7 +127,6 @@ class NoFluffJobsScraper(BaseScraper):
             if val and val not in requirements:
                 requirements.append(val)
 
-        # Data publikacji
         published_at = None
         posted_ts = p.get("posted") or p.get("renewed")
         if posted_ts:
@@ -173,8 +149,7 @@ class NoFluffJobsScraper(BaseScraper):
             published_at=published_at
         )
 
-    def _populate_offer_details(self, offer: JobOffer, client: httpx.Client):
-        """Pobiera pełny opis i wymagania dla wyselekcjonowanej oferty."""
+    def _populate_offer_details(self, offer: JobOffer, client: httpx.Client) -> None:
         url_slug = offer.url.split("/")[-1]
         try:
             detail_res = client.get(f"{self.POSTING_DETAILS_URL}{url_slug}", timeout=5.0)
@@ -185,10 +160,9 @@ class NoFluffJobsScraper(BaseScraper):
                 clean_desc = re.sub(r"<[^>]+>", " ", raw_desc)
                 offer.description = " ".join(clean_desc.split())
                 
-                # Dodatkowe technologie z sekcji musts/nices jeśli dostępne
                 for must in req_obj.get("musts", []):
                     v = must.get("value")
                     if v and v not in offer.requirements:
                         offer.requirements.append(v)
         except Exception as e:
-            logger.debug(f"Nie udało się pobrać szczegółów dla {offer.id}: {e}")
+            logger.debug(f"[{self.name}] Failed to fetch details for {offer.id}: {e}")

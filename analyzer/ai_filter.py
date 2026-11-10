@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Tuple
+import time
+from typing import Tuple, Optional
 from config import GEMINI_API_KEY, GEMINI_MODEL
 from candidate_profile import CANDIDATE_PROFILE
 from models import JobOffer
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class JobOfferAnalyzer:
-    """Moduł AI oceniający dopasowanie oferty pod kątem profilu Kacpra Łamasza."""
+    """Evaluates job offers against candidate profile using Gemini LLM and deterministic rules."""
 
     def __init__(self, api_key: str = GEMINI_API_KEY, model: str = GEMINI_MODEL):
         self.api_key = api_key
@@ -20,66 +21,61 @@ class JobOfferAnalyzer:
                 from google import genai
                 self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
-                logger.warning(f"Nie udało się zainicjalizować klienta Gemini: {e}")
+                logger.warning(f"Failed to initialize Gemini client: {e}")
 
     def evaluate_offer(self, offer: JobOffer) -> Tuple[bool, str]:
         """
-        Ocenia ofertę pracy pod kątem profilu kandydata.
-        Zwraca: (is_recommended: bool, summary_or_reason: str)
-        Wzbogaca również obiekt `offer` o pola: match_score, matched_skills, requires_student.
+        Screens an offer against constraints.
+        Returns: (is_recommended: bool, summary_or_rejection_reason: str)
         """
-        # 1. Szybki filtr regułowy (odrzucenie oczywistych pomyłek bez kosztu AI)
         is_valid, reason = self._fast_heuristic_check(offer)
         if not is_valid:
             return False, reason
 
-        # 2. Jeśli brak klucza API Gemini, polegamy na analizie regułowej
         if not self.client:
             return self._heuristic_fallback(offer)
 
-        # 3. Pełna analiza kontekstowa przez model AI (Gemini Flash)
         prompt = f"""
-Jesteś osobistym doradcą rekrutacyjnym dla kandydata na programistę:
+Jesteś doradcą rekrutacyjnym weryfikującym dopasowanie oferty pracy do profilu kandydata.
 
 PROFIL KANDYDATA:
 - Imię: {CANDIDATE_PROFILE['name']} ({CANDIDATE_PROFILE['headline']})
-- Doświadczenie komercyjne: Stażysta / Junior (0 lat expa komercyjnego, dopuszczalne do 1 roku komercyjnego). Posiada solidne projekty portfolio (Django, FastAPI, Docker, PostgreSQL, React/TypeScript, PyQt6, asynchroniczność, modele AI/LLM).
-- Technologie: {', '.join(CANDIDATE_PROFILE['core_technologies'])}
-- Lokalizacja: Praca zdalna (dowolne miejsce) LUB praca stacjonarna/hybrydowa we Wrocławiu i najbliższych okolicach.
-- Języki: Angielski B2, Polski C2 (ojczysty). Brak znajomości niemieckiego, francuskiego itp.
-- Status studenta: Kandydat NIE POSIADA statusu studenta.
+- Doświadczenie komercyjne: Poziom Junior / Staż (0 lat doświadczenia komercyjnego, dopuszczalne do 1 roku).
+- Projekty portfolio: Django, FastAPI, Docker, PostgreSQL, React, TypeScript, AsyncIO, integracja modeli AI/LLM.
+- Stack technologiczny: {', '.join(CANDIDATE_PROFILE['core_technologies'])}
+- Lokalizacja: Praca w 100% zdalna (Remote) LUB praca stacjonarna/hybrydowa we Wrocławiu i najbliższych okolicach.
+- Języki: Angielski B2, Polski C2 (ojczysty). Brak znajomości języka niemieckiego, francuskiego itp.
+- Status studenta: Brak statusu studenta.
 
 OFERTA PRACY DO OCENY:
 - Tytuł: {offer.title}
 - Firma: {offer.company}
 - Poziom (seniority): {', '.join(offer.seniority)}
-- Widełki: {offer.salary or 'Brak podanych'}
+- Widełki: {offer.salary or 'Nie podano'}
 - Lokalizacja: {offer.location} (Zdalnie: {offer.is_remote})
 - Wymagane technologie: {', '.join(offer.requirements)}
 - Treść ogłoszenia: {offer.description or 'Brak dodatkowego opisu'}
 
-ZADANIE DLA CIEBIE:
-Oceń, czy ta oferta pracy jest odpowiednia dla kandydata wg poniższych zasad:
+ZASADY WERYFIKACJI:
 1. ODRZUĆ ofertę (is_recommended = false), jeśli:
-   - Wymaga powyżej 1 roku twardego doświadczenia komercyjnego (np. min. 2-3 lata jako Junior/Mid).
-   - Python NIE jest jednym z głównych języków (np. oferta na C++, Java, PHP z Pythonem tylko pobocznie).
-   - Wymaga pracy stacjonarnej lub hybrydowej w innym mieście niż Wrocław i okolice (gdy brak opcji 100% Remote).
-   - Wymaga obowiązkowej znajomości języka niemieckiego, francuskiego itp. (angielski B2 jest w porządku).
+   - Wymaga powyżej 1 roku doświadczenia komercyjnego (np. min. 2-3 lata, poziom Mid/Senior/Lead).
+   - Rola nie jest programistyczna lub Python jest tylko marginalnym dodatkiem.
+   - Wymaga pracy stacjonarnej/hybrydowej poza Wrocławiem (i brak opcji Remote).
+   - Wymaga obowiązkowej znajomości języka innego niż polski i angielski.
 2. STATUS STUDENTA:
-   - Sprawdź, czy oferta BEZWZGLĘDNIE wymaga statusu studenta (np. "tylko dla studentów", "umowa zlecenie dla studenta").
-   - Jeśli tak, oznacz requires_student = true.
+   - Jeśli oferta bezwzględnie wymaga statusu studenta, oznacz requires_student = true.
 3. DOPASOWANIE TECHNOLOGICZNE:
-   - Wypisz technologie z oferty, które pokrywają się ze skillem kandydata (np. Python, Django, FastAPI, Docker, PostgreSQL, React).
-   - Oceń dopasowanie (match_score): "Wysokie", "Średnie" lub "Niskie".
+   - Wskaż technologie pokrywające się ze skillem kandydata.
+   - Oceń stopień dopasowania: 'Wysokie', 'Średnie' lub 'Niskie'.
 
-Odpowiedz WYŁĄCZNIE w poprawnym formacie JSON:
+ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
 {{
   "is_recommended": true/false,
-  "rejection_reason": "Dlaczego odrzucono (jeśli is_recommended=false, w przeciwnym razie null)",
+  "rejection_reason": "Powód odrzucenia (lub null)",
   "requires_student": true/false,
   "match_score": "Wysokie / Średnie / Niskie",
   "matched_skills": ["Python", "FastAPI", "Docker"],
-  "summary": "Krótkie 2 zdania podsumowania po polsku: co to za projekt, dlaczego pasuje do kandydata i na co zwrócić uwagę przy aplikacji."
+  "summary": "Zwięzłe 2 zdania podsumowania: specyfika roli, dopasowanie do portfolio i wskazówka do aplikacji."
 }}
 """
 
@@ -95,11 +91,10 @@ Odpowiedz WYŁĄCZNIE w poprawnym formacie JSON:
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    logger.warning(f"Osiągnięto limit zapytań (15/min). Chwilowe odczekanie...")
-                    import time
+                    logger.warning("Rate limit encountered. Backing off briefly...")
                     time.sleep(4.0)
                 else:
-                    logger.warning(f"Model {current_model} napotkał problem ({e}), próbuję alternatywę...")
+                    logger.warning(f"Model {current_model} call failed ({e}), attempting fallback...")
 
         if not response or not response.text:
             return self._heuristic_fallback(offer)
@@ -119,7 +114,6 @@ Odpowiedz WYŁĄCZNIE w poprawnym formacie JSON:
             summary = parsed.get("summary", "")
             rejection_reason = parsed.get("rejection_reason")
 
-            # Wzbogacenie obiektu offer
             offer.requires_student = requires_student
             offer.match_score = match_score
             offer.matched_skills = matched_skills
@@ -127,26 +121,22 @@ Odpowiedz WYŁĄCZNIE w poprawnym formacie JSON:
             if not is_rec:
                 return False, rejection_reason or "Oferta nie spełnia kryteriów kandydata."
 
-            # Obsługa statusu studenta wg preferencji kandydata
             if requires_student and not CANDIDATE_PROFILE.get("include_student_offers_with_tag", True):
                 return False, "Oferta odrzucona: wymaga statusu studenta."
 
             return True, summary
 
         except Exception as e:
-            logger.warning(f"Błąd podczas parsowania odpowiedzi AI ({e}), używam analizy regułowej.")
+            logger.warning(f"Failed to parse LLM structured response ({e}), using fallback.")
             return self._heuristic_fallback(offer)
 
     def _fast_heuristic_check(self, offer: JobOffer) -> Tuple[bool, str]:
-        """Szybkie reguły eliminacyjne sprawdzane jeszcze przed modelem AI."""
         title_lower = offer.title.lower()
 
-        # 1. Czarna lista ról
         for bad_role in CANDIDATE_PROFILE["blacklisted_roles"]:
             if bad_role in title_lower and "python" not in title_lower:
-                return False, f"Odrzucono ze względu na rolę: {bad_role}"
+                return False, f"Odrzucono ze względu na profil: {bad_role}"
 
-        # 2. Języki obce (jeśli w tytule lub tagach widnieje język niemiecki/francuski)
         all_text = (offer.title + " " + " ".join(offer.requirements)).lower()
         for dis_lang in CANDIDATE_PROFILE["disallowed_foreign_languages"]:
             if f"język {dis_lang}" in all_text or f"znajomość języka {dis_lang}" in all_text:
@@ -155,7 +145,6 @@ Odpowiedz WYŁĄCZNIE w poprawnym formacie JSON:
         return True, "OK"
 
     def _heuristic_fallback(self, offer: JobOffer) -> Tuple[bool, str]:
-        """Klasyczny filtr regułowy używany, gdy Gemini API nie jest dostępne."""
         matched = []
         for tech in ["Python", "Django", "FastAPI", "Flask", "PostgreSQL", "Docker", "React", "TypeScript", "SQL"]:
             if any(tech.lower() == req.lower() for req in offer.requirements):
@@ -163,6 +152,5 @@ Odpowiedz WYŁĄCZNIE w poprawnym formacie JSON:
 
         offer.matched_skills = matched
         offer.match_score = "Wysokie" if len(matched) >= 2 else "Średnie"
-
-        summary = f"Pasujące umiejętności z portfolio: {', '.join(matched) if matched else 'Python'}."
+        summary = f"Wymagania pokrywające się z profilem: {', '.join(matched) if matched else 'Python'}."
         return True, summary
