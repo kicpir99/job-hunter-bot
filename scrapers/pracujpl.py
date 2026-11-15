@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class PracujPlScraper(BaseScraper):
     """Scraper extracting IT job offers from Pracuj.pl and TheProtocol via dehydratedState."""
 
-    SEARCH_URL = "https://it.pracuj.pl/praca/python;kw/junior,praktykant-stazysta;et"
+    SEARCH_URL = "https://it.pracuj.pl/praca/python;kw?et=1%2C17"
 
     @property
     def name(self) -> str:

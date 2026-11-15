@@ -6,7 +6,7 @@ import httpx
 
 from config import TARGET_KEYWORDS, TARGET_SENIORITY, TARGET_CATEGORY
 from candidate_profile import CANDIDATE_PROFILE
-from models import JobOffer
+from models import JobOffer, normalize_company, normalize_title
 from scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,8 @@ class NoFluffJobsScraper(BaseScraper):
 
     def fetch_offers(self) -> List[JobOffer]:
         seniorities = ",".join(TARGET_SENIORITY)
-        raw_search = f"{TARGET_KEYWORDS} category={TARGET_CATEGORY} seniority={seniorities}"
+        cat_filter = f" category={TARGET_CATEGORY}" if TARGET_CATEGORY else ""
+        raw_search = f"{TARGET_KEYWORDS}{cat_filter} seniority={seniorities}"
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)",
@@ -36,7 +37,7 @@ class NoFluffJobsScraper(BaseScraper):
 
         payload = {"rawSearch": raw_search}
         offers: List[JobOffer] = []
-        grouped: dict[str, JobOffer] = {}
+        grouped: dict[tuple[str, str], JobOffer] = {}
 
         try:
             with httpx.Client(headers=headers, timeout=15.0) as client:
@@ -52,13 +53,19 @@ class NoFluffJobsScraper(BaseScraper):
                     if not offer or not self._is_location_valid(offer):
                         continue
 
-                    group_key = f"{offer.company.lower().strip()}_{offer.title.lower().strip()}"
+                    group_key = (normalize_company(offer.company), normalize_title(offer.title))
                     if group_key not in grouped:
                         grouped[group_key] = offer
                     else:
                         existing = grouped[group_key]
                         if offer.is_remote and not existing.is_remote:
-                            grouped[group_key] = offer
+                            existing.is_remote = True
+                        curr_locs = [c.strip() for c in existing.location.split(",") if c.strip()]
+                        new_locs = [c.strip() for c in offer.location.split(",") if c.strip()]
+                        for nl in new_locs:
+                            if nl not in curr_locs:
+                                curr_locs.append(nl)
+                        existing.location = ", ".join(curr_locs[:3])
 
                 offers = list(grouped.values())
                 logger.info(f"[{self.name}] Filtered down to {len(offers)} deduplicated offers. Fetching details...")

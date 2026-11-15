@@ -22,4 +22,4 @@ DATABASE_PATH = DATA_DIR / "jobs.db"
 # Search Parameters
 TARGET_KEYWORDS = os.getenv("TARGET_KEYWORDS", "python").strip()
 TARGET_SENIORITY = [s.strip().lower() for s in os.getenv("TARGET_SENIORITY", "trainee,junior").split(",") if s.strip()]
-TARGET_CATEGORY = os.getenv("TARGET_CATEGORY", "backend").strip()
+TARGET_CATEGORY = os.getenv("TARGET_CATEGORY", "").strip()
