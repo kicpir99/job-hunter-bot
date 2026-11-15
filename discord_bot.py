@@ -87,7 +87,10 @@ async def cmd_list(interaction: discord.Interaction, oferta: str):
         # Discord embed fields limit is 1024 chars, cover letter might be slightly longer -> split or send in chunks
         pitch = res.get("linkedin_pitch", "")
         if pitch:
-            embed.add_field(name="📨 Krótki Pitch do wiadomości na LinkedIn", value=f"```text\n{pitch}\n```", inline=False)
+            pitch_block = f"```text\n{pitch}\n```"
+            if len(pitch_block) > 1024:
+                pitch_block = f"```text\n{pitch[:1005]}...\n```"
+            embed.add_field(name="📨 Krótki Pitch do wiadomości na LinkedIn", value=pitch_block, inline=False)
 
         letter = res.get("cover_letter_markdown", "")
         if len(letter) <= 1024:
@@ -95,8 +98,10 @@ async def cmd_list(interaction: discord.Interaction, oferta: str):
             await interaction.followup.send(embed=embed)
         else:
             await interaction.followup.send(embed=embed)
-            # Send full cover letter as formatted follow-up message
-            await interaction.followup.send(f"**Pełna treść listu motywacyjnego:**\n\n{letter}")
+            # Send full cover letter in <= 1900-char chunks to respect Discord's 2000-char message limit
+            full_msg = f"**Pełna treść listu motywacyjnego:**\n\n{letter}"
+            for i in range(0, len(full_msg), 1900):
+                await interaction.followup.send(full_msg[i:i + 1900])
 
     except Exception as e:
         await interaction.followup.send(f"❌ Błąd podczas generowania: {e}")

@@ -18,6 +18,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source code
 COPY . .
 
+# Create non-root user and prepare writable persistence directories
+RUN useradd --create-home --shell /bin/bash appuser \
+    && mkdir -p /app/data /app/reports \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
 # Persistence mount points for SQLite DB and generated reports
 VOLUME ["/app/data", "/app/reports"]
 

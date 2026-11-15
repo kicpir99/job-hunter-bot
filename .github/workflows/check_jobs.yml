@@ -6,9 +6,14 @@ on:
     - cron: '*/30 6-17 * * 1-5'
   workflow_dispatch: # Pozwala odpalić ręcznie jednym kliknięciem w panelu GitHub Actions
 
+concurrency:
+  group: job-hunter-run
+  cancel-in-progress: false
+
 jobs:
   run-job-hunter:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:

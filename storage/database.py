@@ -1,8 +1,9 @@
+from contextlib import contextmanager
 import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Iterator
 from config import DATABASE_PATH
 from models import JobOffer, normalize_company, normalize_title
 
@@ -18,10 +19,18 @@ class JobDatabase:
     def _ensure_dir(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _get_connection(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def init_db(self) -> None:
         """Initializes database schema, indexes, and applies automatic migrations."""
@@ -242,9 +251,8 @@ class JobDatabase:
             conn.commit()
 
         if deleted > 0:
-            vacuum_conn = self._get_connection()
+            vacuum_conn = sqlite3.connect(self.db_path, isolation_level=None)
             try:
-                vacuum_conn.isolation_level = None
                 vacuum_conn.execute("VACUUM")
             finally:
                 vacuum_conn.close()

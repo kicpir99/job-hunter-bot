@@ -9,6 +9,13 @@ from models import JobOffer
 logger = logging.getLogger(__name__)
 
 
+def _truncate(text: str, limit: int) -> str:
+    """Truncates text to fit Discord API length limits."""
+    if not text or len(text) <= limit:
+        return text
+    return text[: max(0, limit - 3)] + "..."
+
+
 def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None, db_id: Optional[int] = None) -> Dict[str, Any]:
     """Constructs an ultra-readable, symmetrical Discord Embed card with candidate alignment indicators."""
     
@@ -82,14 +89,18 @@ def create_discord_embed(offer: JobOffer, ai_summary: Optional[str] = None, db_i
     id_display = f"#{db_id}" if db_id else f"#{offer.id}"
     cmd_arg = str(db_id) if db_id else offer.company
 
+    for f in fields:
+        f["name"] = _truncate(f["name"], 256)
+        f["value"] = _truncate(f["value"], 1024)
+
     return {
-        "title": badge_title,
+        "title": _truncate(badge_title, 256),
         "url": offer.url,
         "color": color,
         "fields": fields,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "footer": {
-            "text": f"ID oferty: {id_display} • Wpisz /list {cmd_arg} aby wygenerować aplikację"
+            "text": _truncate(f"ID oferty: {id_display} • Wpisz /list {cmd_arg} aby wygenerować aplikację", 2048)
         }
     }
 
@@ -121,7 +132,7 @@ def send_discord_message(
                     {
                         "type": 2,
                         "style": 5,
-                        "label": f"👉 Aplikuj na {offer.portal.upper()}",
+                        "label": _truncate(f"👉 Aplikuj na {offer.portal.upper()}", 80),
                         "url": offer.url
                     }
                 ]
