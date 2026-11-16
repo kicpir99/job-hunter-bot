@@ -45,8 +45,8 @@ PROFIL KANDYDATA:
 - Projekty portfolio: Django, FastAPI, Docker, PostgreSQL, React, TypeScript, AsyncIO, integracja modeli AI/LLM.
 - Stack technologiczny: {', '.join(CANDIDATE_PROFILE['core_technologies'])}
 - Lokalizacja: Praca w 100% zdalna (Remote) LUB praca stacjonarna/hybrydowa we Wrocławiu i najbliższych okolicach.
-- Języki: Angielski B2, Polski C2 (ojczysty). Brak znajomości języka niemieckiego, francuskiego itp.
-- Status studenta: Brak statusu studenta.
+- Języki: Angielski B2 (akceptowalne oferty do C1 włącznie; ODRZUCAJ C2, Fluent in English / biegły biznesowy angielski), Polski C2 (ojczysty). Brak znajomości języka niemieckiego, francuskiego itp.
+- Wykształcenie i status studenta: Brak dyplomu uczelni wyższej (odrzucaj oferty wymagające wykształcenia wyższego / studiów wyższych, np. Bachelor's/Master's degree). Brak statusu studenta (ale ofert ze statusem studenta nie odrzucaj — tylko je taguj).
 
 OFERTA PRACY DO OCENY:
 - Tytuł: {offer.title}
@@ -60,11 +60,12 @@ OFERTA PRACY DO OCENY:
 ZASADY WERYFIKACJI:
 1. ODRZUĆ ofertę (is_recommended = false), jeśli:
    - Wymaga powyżej 1 roku doświadczenia komercyjnego (np. min. 2-3 lata, poziom Mid/Senior/Lead).
-   - Rola nie jest programistyczna lub Python jest tylko marginalnym dodatkiem.
+   - Rola nie jest programistyczna lub głównym językiem programowania jest inny język (np. C++, Rust, Java, C#, Go, PHP, Embedded/Automotive), a Python jest tylko dodatkiem lub jednym z wielu pobocznych narzędzi.
    - Wymaga pracy stacjonarnej/hybrydowej poza Wrocławiem (i brak opcji Remote).
-   - Wymaga obowiązkowej znajomości języka innego niż polski i angielski.
+   - Wymaga obowiązkowej znajomości języka innego niż polski i angielski, LUB wymaga angielskiego na poziomie C2 / Fluent / Native / biegłego biznesowego (poziomy B2 i C1 są akceptowalne).
+   - Wymaga ukończonych studiów / wykształcenia wyższego (np. Master's degree, Bachelor's degree, BSc/MSc, wykształcenie wyższe kierunkowe).
 2. STATUS STUDENTA:
-   - Jeśli oferta bezwzględnie wymaga statusu studenta, oznacz requires_student = true.
+   - Jeśli oferta bezwzględnie wymaga statusu studenta (np. ze względu na umowę zlecenie / praktyki), NIE odrzucaj jej z tego powodu — ustaw requires_student = true.
 3. DOPASOWANIE TECHNOLOGICZNE:
    - Wskaż technologie pokrywające się ze skillem kandydata.
    - Oceń stopień dopasowania: 'Wysokie', 'Średnie' lub 'Niskie'.
@@ -191,11 +192,34 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
             if bad_role in title_lower and "python" not in title_lower:
                 return False, f"Odrzucono ze względu na profil: {bad_role}"
 
-        # 5. Language requirements
+        # 5. Language requirements (foreign languages + English C2 / Fluent)
         all_text = f"{title_lower} {' '.join(offer.requirements).lower()} {offer.description or ''}".lower()
         for dis_lang in CANDIDATE_PROFILE.get("disallowed_foreign_languages", []):
             if f"język {dis_lang}" in all_text or f"znajomość języka {dis_lang}" in all_text or f"{dis_lang} b2" in all_text or f"{dis_lang} c1" in all_text:
                 return False, f"Odrzucono ze względu na wymóg języka obcego ({dis_lang})."
+
+        ENGLISH_TOO_HIGH_PATTERNS = [
+            r'\bfluent\s+(?:in\s+)?english\b',
+            r'\benglish\s*[:\-–]?\s*(?:c2|fluent|native)\b',
+            r'\bc2\s+(?:level\s+)?(?:of\s+)?english\b',
+            r'\bbieg[łl][yae]\s+(?:znajomo[śs][ćc]\s+)?(?:j[ęe]zyka\s+)?angielsk',
+            r'\bj[ęe]zyk\s+angielski\s*[:\-–]?\s*(?:c2|bieg[łl]y|native)\b',
+        ]
+        for pat in ENGLISH_TOO_HIGH_PATTERNS:
+            if re.search(pat, all_text):
+                return False, "Odrzucono automatycznie: wymagany język angielski powyżej C1 (Fluent/C2)."
+
+        # 6. Higher education / university degree requirement
+        if CANDIDATE_PROFILE.get("reject_degree_requirement", True):
+            DEGREE_PATTERNS = [
+                r'\beducation\s*[:\-–]?\s*(?:master|bachelor)',
+                r"\b(?:master|bachelor)['’]?s\s+degree\b",
+                r'\bwymagane\s+wykszta[łl]cenie\s+wy[żz]sze\b',
+                r'\bwykszta[łl]cenie\s+wy[żz]sze\s+(?:kierunkowe|techniczne|informatyczne)\b',
+            ]
+            for pat in DEGREE_PATTERNS:
+                if re.search(pat, all_text):
+                    return False, "Odrzucono automatycznie: wymagane wykształcenie wyższe / dyplom studiów."
 
         return True, "OK"
 

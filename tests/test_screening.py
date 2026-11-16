@@ -94,3 +94,79 @@ def test_heuristic_rejection_of_senior_and_mid():
     assert not is_rec
     assert "mid" in reason.lower()
 
+
+def test_heuristic_rejection_of_fluent_english_c2_and_degree():
+    analyzer = JobOfferAnalyzer()
+
+    toyota_like = JobOffer(
+        id="toyota-1",
+        portal="nofluffjobs",
+        title="Infotainment Software Engineer / Graduate",
+        company="Toyota Digital HUB",
+        url="https://nofluffjobs.com/test",
+        seniority=["Junior"],
+        location="Wrocław",
+        is_remote=False,
+        requirements=["C++", "Python", "Rust"],
+        description="Language Skills: Fluent in English (TME business language). Education: Master’s degree in Computer Science."
+    )
+    is_rec, reason = analyzer._fast_heuristic_check(toyota_like)
+    assert not is_rec
+    assert "fluent" in reason.lower() or "c1" in reason.lower()
+
+    degree_only = JobOffer(
+        id="deg-1",
+        portal="pracujpl",
+        title="Junior Python Developer",
+        company="Corp",
+        url="https://pracuj.pl/test",
+        seniority=["Junior"],
+        location="Remote",
+        is_remote=True,
+        requirements=["Python", "Django"],
+        description="Wymagane wykształcenie wyższe informatyczne."
+    )
+    is_rec_deg, reason_deg = analyzer._fast_heuristic_check(degree_only)
+    assert not is_rec_deg
+    assert "wykształcenie wyższe" in reason_deg.lower()
+
+
+def test_heuristic_allows_english_c1_for_python_role():
+    analyzer = JobOfferAnalyzer()
+
+    c1_offer = JobOffer(
+        id="c1-1",
+        portal="nofluffjobs",
+        title="Junior Python Backend Developer",
+        company="GoodCorp",
+        url="https://nofluffjobs.com/test",
+        seniority=["Junior"],
+        location="Remote",
+        is_remote=True,
+        requirements=["Python", "FastAPI"],
+        description="Required: English C1 level and experience with FastAPI."
+    )
+    is_rec, reason = analyzer._fast_heuristic_check(c1_offer)
+    assert is_rec
+    assert reason == "OK"
+
+
+def test_heuristic_rejection_of_embedded_and_non_python_primary():
+    analyzer = JobOfferAnalyzer()
+
+    embedded_offer = JobOffer(
+        id="emb-1",
+        portal="nofluffjobs",
+        title="Junior Embedded Software Engineer",
+        company="AutoCorp",
+        url="https://nofluffjobs.com/test",
+        seniority=["Junior"],
+        location="Wrocław",
+        is_remote=False,
+        requirements=["C++", "Rust", "Python"]
+    )
+    is_rec, reason = analyzer._fast_heuristic_check(embedded_offer)
+    assert not is_rec
+    assert "embedded" in reason.lower()
+
+

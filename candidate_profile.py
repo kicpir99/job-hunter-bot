@@ -31,6 +31,10 @@ CANDIDATE_PROFILE = {
         "java developer",
         ".net developer",
         "php developer",
+        "rust developer",
+        "golang developer",
+        "go developer",
+        "embedded",
         "scrum master",
         "product owner"
     ],
@@ -62,7 +66,8 @@ CANDIDATE_PROFILE = {
         "niemiecki", "german", "francuski", "french", "hiszpański", "spanish"
     ],
 
-    # Student requirements
+    # Student & education requirements
     "has_student_status": False,
-    "include_student_offers_with_tag": True
+    "include_student_offers_with_tag": True,
+    "reject_degree_requirement": True,
 }
