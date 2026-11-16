@@ -60,7 +60,7 @@ OFERTA PRACY DO OCENY:
 ZASADY WERYFIKACJI:
 1. ODRZUĆ ofertę (is_recommended = false), jeśli:
    - Wymaga powyżej 1 roku doświadczenia komercyjnego (np. min. 2-3 lata, poziom Mid/Senior/Lead).
-   - Rola nie jest programistyczna lub głównym językiem programowania jest inny język (np. C++, Rust, Java, C#, Go, PHP, Embedded/Automotive), a Python jest tylko dodatkiem lub jednym z wielu pobocznych narzędzi.
+   - Rola nie jest programistyczna lub głównym językiem programowania jest inny język (np. C++, Rust, Java, C#, Go, PHP, Embedded/Automotive), a Python jest tylko marginalnym dodatkiem (np. nice-to-have albo do prostych skryptów). UWAGA: Jeśli oferta dopuszcza wybór jednego z kilku głównych języków (np. "Python lub C++", "Python / Go", "Java or Python"), TAKA OFERTA SPEŁNIA KRYTERIUM i NIE odrzucaj jej za obecność drugiego języka!
    - Wymaga pracy stacjonarnej/hybrydowej poza Wrocławiem (i brak opcji Remote).
    - Wymaga obowiązkowej znajomości języka innego niż polski i angielski, LUB wymaga angielskiego na poziomie C2 / Fluent / Native / biegłego biznesowego (poziomy B2 i C1 są akceptowalne).
    - Wymaga ukończonych studiów / wykształcenia wyższego (np. Master's degree, Bachelor's degree, BSc/MSc, wykształcenie wyższe kierunkowe).

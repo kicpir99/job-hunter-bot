@@ -170,3 +170,39 @@ def test_heuristic_rejection_of_embedded_and_non_python_primary():
     assert "embedded" in reason.lower()
 
 
+def test_heuristic_allows_python_or_other_language_choice():
+    analyzer = JobOfferAnalyzer()
+
+    dual_title_offer = JobOffer(
+        id="dual-1",
+        portal="nofluffjobs",
+        title="Junior C++ / Python Developer",
+        company="FlexCorp",
+        url="https://nofluffjobs.com/test",
+        seniority=["Junior"],
+        location="Remote",
+        is_remote=True,
+        requirements=["Python", "C++"]
+    )
+    is_rec_title, reason_title = analyzer._fast_heuristic_check(dual_title_offer)
+    assert is_rec_title
+    assert reason_title == "OK"
+
+    dual_desc_offer = JobOffer(
+        id="dual-2",
+        portal="pracujpl",
+        title="Junior Software Engineer",
+        company="FlexCorp",
+        url="https://pracuj.pl/test",
+        seniority=["Junior"],
+        location="Wrocław",
+        is_remote=False,
+        requirements=["Python", "C++", "Git"],
+        description="Wymagana znajomość jednego z języków: Python lub C++."
+    )
+    is_rec_desc, reason_desc = analyzer._fast_heuristic_check(dual_desc_offer)
+    assert is_rec_desc
+    assert reason_desc == "OK"
+
+
+
