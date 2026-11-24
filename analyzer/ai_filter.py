@@ -45,7 +45,7 @@ PROFIL KANDYDATA:
 - Projekty portfolio: Django, FastAPI, Docker, PostgreSQL, React, TypeScript, AsyncIO, integracja modeli AI/LLM.
 - Stack technologiczny: {', '.join(CANDIDATE_PROFILE['core_technologies'])}
 - Lokalizacja: Praca w 100% zdalna (Remote) LUB praca stacjonarna/hybrydowa we Wrocławiu i najbliższych okolicach.
-- Języki: Angielski B2 (akceptowalne oferty do C1 włącznie; ODRZUCAJ C2, Fluent in English / biegły biznesowy angielski), Polski C2 (ojczysty). Brak znajomości języka niemieckiego, francuskiego itp.
+- Języki: Angielski B2 (maksymalnie B2 — ODRZUCAJ oferty wymagające C1, C2, Fluent in English / biegłego biznesowego angielskiego; akceptuj jedynie B2 lub B2/C1), Polski C2 (ojczysty). Brak znajomości języka niemieckiego, francuskiego itp.
 - Wykształcenie i status studenta: Brak dyplomu uczelni wyższej (odrzucaj oferty wymagające wykształcenia wyższego / studiów wyższych, np. Bachelor's/Master's degree). Brak statusu studenta (ale ofert ze statusem studenta nie odrzucaj — tylko je taguj).
 
 OFERTA PRACY DO OCENY:
@@ -62,7 +62,7 @@ ZASADY WERYFIKACJI:
    - Wymaga powyżej 1 roku doświadczenia komercyjnego (np. min. 2-3 lata, poziom Mid/Senior/Lead).
    - Rola nie jest programistyczna lub głównym językiem programowania jest inny język (np. C++, Rust, Java, C#, Go, PHP, Embedded/Automotive), a Python jest tylko marginalnym dodatkiem (np. nice-to-have albo do prostych skryptów). UWAGA: Jeśli oferta dopuszcza wybór jednego z kilku głównych języków (np. "Python lub C++", "Python / Go", "Java or Python"), TAKA OFERTA SPEŁNIA KRYTERIUM i NIE odrzucaj jej za obecność drugiego języka!
    - Wymaga pracy stacjonarnej/hybrydowej poza Wrocławiem (i brak opcji Remote).
-   - Wymaga obowiązkowej znajomości języka innego niż polski i angielski, LUB wymaga angielskiego na poziomie C2 / Fluent / Native / biegłego biznesowego (poziomy B2 i C1 są akceptowalne).
+   - Wymaga obowiązkowej znajomości języka innego niż polski i angielski, LUB wymaga angielskiego powyżej poziomu B2 (np. C1, C2, Fluent, Native, biegły biznesowy; akceptuj maksymalnie B2 lub B2/C1).
    - Wymaga ukończonych studiów / wykształcenia wyższego (np. Master's degree, Bachelor's degree, BSc/MSc, wykształcenie wyższe kierunkowe).
 2. STATUS STUDENTA:
    - Jeśli oferta bezwzględnie wymaga statusu studenta (np. ze względu na umowę zlecenie / praktyki), NIE odrzucaj jej z tego powodu — ustaw requires_student = true.
@@ -200,14 +200,17 @@ ZWRÓĆ WYŁĄCZNIE CZYSTY JSON:
 
         ENGLISH_TOO_HIGH_PATTERNS = [
             r'\bfluent\s+(?:in\s+)?english\b',
-            r'\benglish\s*[:\-–]?\s*(?:c2|fluent|native)\b',
-            r'\bc2\s+(?:level\s+)?(?:of\s+)?english\b',
+            r'\benglish\s*(?:\(|:|\-|–)?\s*(?:c1|c2|fluent|native)\b',
+            r'(?<!b2/)(?<!b2 / )(?<!b2-)\b(?:c1|c2)\s*(?:level\s+)?(?:of\s+)?english\b',
             r'\bbieg[łl][yae]\s+(?:znajomo[śs][ćc]\s+)?(?:j[ęe]zyka\s+)?angielsk',
-            r'\bj[ęe]zyk\s+angielski\s*[:\-–]?\s*(?:c2|bieg[łl]y|native)\b',
+            r'\bj[ęe]zyk\s+angielski\s*(?:\(|:|\-|–)?\s*(?:c1|c2|bieg[łl]y|native)\b',
+            r'\bangielski\s*(?:\(|:|\-|–)?\s*(?:c1|c2|bieg[łl]y|native)\b',
+            r'\b(?:c1|c2)\s+angielski\b',
         ]
-        for pat in ENGLISH_TOO_HIGH_PATTERNS:
-            if re.search(pat, all_text):
-                return False, "Odrzucono automatycznie: wymagany język angielski powyżej C1 (Fluent/C2)."
+        if not re.search(r'\bb2\s*[/\-–]\s*c1\b', all_text):
+            for pat in ENGLISH_TOO_HIGH_PATTERNS:
+                if re.search(pat, all_text):
+                    return False, "Odrzucono automatycznie: wymagany język angielski powyżej B2 (C1/C2/Fluent)."
 
         # 6. Higher education / university degree requirement
         if CANDIDATE_PROFILE.get("reject_degree_requirement", True):

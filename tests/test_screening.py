@@ -131,7 +131,7 @@ def test_heuristic_rejection_of_fluent_english_c2_and_degree():
     assert "wykształcenie wyższe" in reason_deg.lower()
 
 
-def test_heuristic_allows_english_c1_for_python_role():
+def test_heuristic_rejects_english_c1_and_allows_b2_or_b2_c1():
     analyzer = JobOfferAnalyzer()
 
     c1_offer = JobOffer(
@@ -147,8 +147,24 @@ def test_heuristic_allows_english_c1_for_python_role():
         description="Required: English C1 level and experience with FastAPI."
     )
     is_rec, reason = analyzer._fast_heuristic_check(c1_offer)
-    assert is_rec
-    assert reason == "OK"
+    assert not is_rec
+    assert "powyżej b2" in reason.lower()
+
+    b2_c1_offer = JobOffer(
+        id="b2c1-1",
+        portal="pracujpl",
+        title="Junior Python Developer",
+        company="GoodCorp",
+        url="https://pracuj.pl/test",
+        seniority=["Junior"],
+        location="Remote",
+        is_remote=True,
+        requirements=["Python", "Django"],
+        description="Wymagany angielski B2/C1."
+    )
+    is_rec_b2, reason_b2 = analyzer._fast_heuristic_check(b2_c1_offer)
+    assert is_rec_b2
+    assert reason_b2 == "OK"
 
 
 def test_heuristic_rejection_of_embedded_and_non_python_primary():
